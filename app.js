@@ -69,15 +69,38 @@ function carregarDados() {
 
 async function carregarJurisprudencia() {
     try {
+        console.log('🔄 Iniciando carregamento do JSON...');
         const response = await fetch('tst_data_complete.json');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         dadosTST = await response.json();
+        console.log('📊 JSON carregado:', dadosTST);
+        
+        // Validar estrutura do JSON
+        if (!dadosTST || typeof dadosTST !== 'object') {
+            throw new Error('JSON inválido: não é um objeto');
+        }
+        
+        // Garantir que os arrays existam
+        dadosTST.sumulas = Array.isArray(dadosTST.sumulas) ? dadosTST.sumulas : [];
+        dadosTST.ojs = Array.isArray(dadosTST.ojs) ? dadosTST.ojs : [];
+        dadosTST.precedentes = Array.isArray(dadosTST.precedentes) ? dadosTST.precedentes : [];
+        
+        console.log(`📚 Súmulas: ${dadosTST.sumulas.length}`);
+        console.log(`📋 OJs: ${dadosTST.ojs.length}`);
+        console.log(`⚖️ Precedentes: ${dadosTST.precedentes.length}`);
         
         // Combinar todos os itens em um array único
         todosItens = [
             ...dadosTST.sumulas.map(item => ({...item})),
-            ...(dadosTST.ojs || []).map(item => ({...item})),
-            ...(dadosTST.precedentes || []).map(item => ({...item}))
+            ...dadosTST.ojs.map(item => ({...item})),
+            ...dadosTST.precedentes.map(item => ({...item}))
         ];
+        
+        console.log(`📦 Total de itens combinados: ${todosItens.length}`);
         
         // Adicionar ID único para cada item
         todosItens = todosItens.map((item, index) => ({
@@ -109,16 +132,22 @@ async function carregarJurisprudencia() {
         itensFiltrados = todosItens.filter(item => item.source === 'jurisprudencia');
         renderizarResultados();
         
-        console.log(`✅ ${todosItens.length} itens carregados`);
+        console.log(`✅ ${todosItens.length} itens carregados com sucesso!`);
     } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-        document.querySelector('.content').innerHTML = `
-            <div class="empty-state">
-                <h3>⚠️ Erro ao carregar dados</h3>
-                <p>Por favor, certifique-se de que o arquivo tst_data_complete.json está disponível.</p>
-                <p style="color: red; font-size: 0.9em; margin-top: 10px;">${error.message}</p>
-            </div>
-        `;
+        console.error('❌ Erro ao carregar dados:', error);
+        console.error('Stack:', error.stack);
+        
+        const contentEl = document.querySelector('.content');
+        if (contentEl) {
+            contentEl.innerHTML = `
+                <div class="empty-state">
+                    <h3>⚠️ Erro ao carregar dados</h3>
+                    <p>Por favor, certifique-se de que o arquivo tst_data_complete.json está disponível.</p>
+                    <p style="color: red; font-size: 0.9em; margin-top: 10px;"><strong>Erro:</strong> ${error.message}</p>
+                    <p style="font-size: 0.85em; margin-top: 10px;">Verifique o Console do navegador (F12) para mais detalhes.</p>
+                </div>
+            `;
+        }
     }
 }
 
