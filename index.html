@@ -1177,16 +1177,16 @@
         
         <!-- Tabs Navigation -->
         <div class="tabs-nav">
-            <button class="tab-button active" onclick="switchTab('jurisprudencia')">
+            <button class="tab-button active" onclick="switchTab('jurisprudencia', this)">
                 📚 Jurisprudência
             </button>
-            <button class="tab-button" onclick="switchTab('informativos')">
+            <button class="tab-button" onclick="switchTab('informativos', this)">
                 📰 Informativos
             </button>
-            <button class="tab-button" onclick="switchTab('favoritos')">
+            <button class="tab-button" onclick="switchTab('favoritos', this)">
                 ⭐ Favoritos
             </button>
-            <button class="tab-button" onclick="switchTab('teses')">
+            <button class="tab-button" onclick="switchTab('teses', this)">
                 🎯 Teses Vinculantes
             </button>
         </div>
@@ -1400,6 +1400,6 @@
     <!-- Toast -->
     <div id="toast" class="toast"></div>
     
-    <script src="app_complete.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
