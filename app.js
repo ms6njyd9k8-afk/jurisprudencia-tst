@@ -123,34 +123,69 @@ async function carregarJurisprudencia() {
 }
 
 // ========== NAVEGAÇÃO ENTRE ABAS ==========
-function switchTab(tabName) {
-    // Esconder todas as abas
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Remover active de todos os botões
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    // Mostrar aba selecionada
-    document.getElementById(tabName).classList.add('active');
-    
-    // Ativar botão correspondente
-    event.target.classList.add('active');
-    
-    currentTab = tabName;
-    
-    // Renderizar conteúdo específico da aba
-    if (tabName === 'favoritos') {
-        renderizarFavoritos();
-    } else if (tabName === 'informativos') {
-        renderizarInformativos();
-    } else if (tabName === 'teses') {
-        renderizarTeses();
+function switchTab(tabName, buttonElement) {
+    try {
+        console.log('🔄 Iniciando mudança de aba para:', tabName);
+        
+        // Esconder todas as abas
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Remover active de todos os botões
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Mostrar aba selecionada
+        const tabElement = document.getElementById(tabName);
+        if (tabElement) {
+            tabElement.classList.add('active');
+            console.log('✅ Aba ativada:', tabName);
+        } else {
+            console.error('❌ Aba não encontrada:', tabName);
+        }
+        
+        // Ativar botão correspondente
+        if (buttonElement) {
+            buttonElement.classList.add('active');
+            console.log('✅ Botão ativado');
+        } else {
+            console.warn('⚠️ Botão não fornecido');
+        }
+        
+        currentTab = tabName;
+        
+        // Renderizar conteúdo específico da aba
+        try {
+            if (tabName === 'favoritos') {
+                console.log('📋 Renderizando favoritos...');
+                renderizarFavoritos();
+            } else if (tabName === 'informativos') {
+                console.log('📋 Renderizando informativos...');
+                renderizarInformativos();
+            } else if (tabName === 'teses') {
+                console.log('📋 Renderizando teses...');
+                renderizarTeses();
+            }
+            console.log('✅ Renderização concluída');
+        } catch (renderError) {
+            console.error('❌ Erro ao renderizar conteúdo:', renderError);
+            console.error('Stack:', renderError.stack);
+        }
+        
+    } catch (error) {
+        console.error('❌ ERRO CRÍTICO em switchTab:', error);
+        console.error('Stack completo:', error.stack);
+        console.error('Detalhes:', {
+            tabName: tabName,
+            buttonElement: buttonElement,
+            currentTab: currentTab
+        });
+        // Não propagar o erro para não quebrar a interface
     }
 }
+
 
 // ========== CÁLCULO DE ESTATÍSTICAS ==========
 function calcularEstatisticas() {
@@ -395,28 +430,38 @@ function toggleFavoritoModal() {
 }
 
 function renderizarFavoritos() {
-    const content = document.getElementById('favoritosContent');
-    const favoritosItens = todosItens.filter(item => favoritos.includes(item.id));
-    
-    if (favoritosItens.length === 0) {
-        content.innerHTML = `
-            <div class="empty-state">
-                <h3>⭐ Nenhum favorito ainda</h3>
-                <p>Adicione itens aos favoritos clicando na estrela</p>
-            </div>
-        `;
-        return;
+    try {
+        const content = document.getElementById('favoritosContent');
+        
+        if (!content) {
+            console.warn('⚠️ Elemento favoritosContent não encontrado');
+            return;
+        }
+        
+        const favoritosItens = todosItens.filter(item => favoritos.includes(item.id));
+        
+        if (favoritosItens.length === 0) {
+            content.innerHTML = `
+                <div class="empty-state">
+                    <h3>⭐ Nenhum favorito ainda</h3>
+                    <p>Adicione itens aos favoritos clicando na estrela</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const containerClass = viewMode === 'grid' ? 'results-grid' : 'results-list';
+        let html = `<div class="${containerClass}">`;
+        
+        favoritosItens.forEach(item => {
+            html += criarCardHTML(item);
+        });
+        
+        html += '</div>';
+        content.innerHTML = html;
+    } catch (error) {
+        console.error('❌ Erro ao renderizar favoritos:', error);
     }
-    
-    const containerClass = viewMode === 'grid' ? 'results-grid' : 'results-list';
-    let html = `<div class="${containerClass}">`;
-    
-    favoritosItens.forEach(item => {
-        html += criarCardHTML(item);
-    });
-    
-    html += '</div>';
-    content.innerHTML = html;
 }
 
 // ========== ANOTAÇÕES ==========
@@ -822,89 +867,107 @@ function formatarTamanho(bytes) {
 
 // ========== RENDERIZAÇÃO DE INFORMATIVOS ==========
 function renderizarInformativos() {
-    const lista = document.getElementById('informativosList');
-    
-    if (informativos.length === 0) {
-        lista.innerHTML = `
-            <div class="empty-state">
-                <p>Nenhum informativo adicionado ainda</p>
-            </div>
-        `;
-        return;
-    }
-    
-    lista.innerHTML = informativos.map(info => `
-        <div class="document-item">
-            <div class="document-info">
-                <div class="document-title">${info.nome}</div>
-                <div class="document-meta">
-                    📅 ${new Date(info.dataUpload).toLocaleDateString('pt-BR')} | 
-                    📁 ${info.tamanho}
-                </div>
-            </div>
-            <div class="document-actions">
-                <button class="btn btn-warning btn-sm" onclick="toggleFavorito('${info.id}')">
-                    ${favoritos.includes(info.id) ? '⭐' : '☆'}
-                </button>
-                <button class="btn btn-primary btn-sm" onclick="abrirDetalhes('${info.id}')">
-                    👁️ Ver
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="removerDocumento('${info.id}', 'informativo')">
-                    🗑️ Remover
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-// ========== RENDERIZAÇÃO DE TESES ==========
-function renderizarTeses() {
-    const lista = document.getElementById('tesesList');
-    
-    const tesesFiltradas = filtrarTesesPorTipo();
-    
-    if (tesesFiltradas.length === 0) {
-        lista.innerHTML = `
-            <div class="empty-state">
-                <p>Nenhuma tese vinculante adicionada ainda</p>
-            </div>
-        `;
-        return;
-    }
-    
-    lista.innerHTML = tesesFiltradas.map(tese => {
-        const tipoLabel = {
-            'irr': 'IRR',
-            'irdr': 'IRDR',
-            'iac': 'IAC'
-        }[tese.tipo] || tese.tipo;
+    try {
+        const lista = document.getElementById('informativosList');
         
-        return `
+        if (!lista) {
+            console.warn('⚠️ Elemento informativosList não encontrado');
+            return;
+        }
+        
+        if (informativos.length === 0) {
+            lista.innerHTML = `
+                <div class="empty-state">
+                    <p>Nenhum informativo adicionado ainda</p>
+                </div>
+            `;
+            return;
+        }
+        
+        lista.innerHTML = informativos.map(info => `
             <div class="document-item">
                 <div class="document-info">
-                    <div class="document-title">
-                        <span class="card-badge badge-${tese.tipo}" style="margin-right: 10px;">${tipoLabel}</span>
-                        ${tese.nome}
-                    </div>
+                    <div class="document-title">${info.nome}</div>
                     <div class="document-meta">
-                        📅 ${new Date(tese.dataUpload).toLocaleDateString('pt-BR')} | 
-                        📁 ${tese.tamanho}
+                        📅 ${new Date(info.dataUpload).toLocaleDateString('pt-BR')} | 
+                        📁 ${info.tamanho}
                     </div>
                 </div>
                 <div class="document-actions">
-                    <button class="btn btn-warning btn-sm" onclick="toggleFavorito('${tese.id}')">
-                        ${favoritos.includes(tese.id) ? '⭐' : '☆'}
+                    <button class="btn btn-warning btn-sm" onclick="toggleFavorito('${info.id}')">
+                        ${favoritos.includes(info.id) ? '⭐' : '☆'}
                     </button>
-                    <button class="btn btn-primary btn-sm" onclick="abrirDetalhes('${tese.id}')">
+                    <button class="btn btn-primary btn-sm" onclick="abrirDetalhes('${info.id}')">
                         👁️ Ver
                     </button>
-                    <button class="btn btn-danger btn-sm" onclick="removerDocumento('${tese.id}', 'tese')">
+                    <button class="btn btn-danger btn-sm" onclick="removerDocumento('${info.id}', 'informativo')">
                         🗑️ Remover
                     </button>
                 </div>
             </div>
-        `;
-    }).join('');
+        `).join('');
+    } catch (error) {
+        console.error('❌ Erro ao renderizar informativos:', error);
+    }
+}
+
+// ========== RENDERIZAÇÃO DE TESES ==========
+function renderizarTeses() {
+    try {
+        const lista = document.getElementById('tesesList');
+        
+        if (!lista) {
+            console.warn('⚠️ Elemento tesesList não encontrado');
+            return;
+        }
+        
+        const tesesFiltradas = filtrarTesesPorTipo();
+        
+        if (tesesFiltradas.length === 0) {
+            lista.innerHTML = `
+                <div class="empty-state">
+                    <p>Nenhuma tese vinculante adicionada ainda</p>
+                </div>
+            `;
+            return;
+        }
+        
+        lista.innerHTML = tesesFiltradas.map(tese => {
+            const tipoLabel = {
+                'irr': 'IRR',
+                'irdr': 'IRDR',
+                'iac': 'IAC'
+            }[tese.tipo] || tese.tipo;
+            
+            return `
+                <div class="document-item">
+                    <div class="document-info">
+                        <div class="document-title">
+                            <span class="card-badge badge-${tese.tipo}" style="margin-right: 10px;">${tipoLabel}</span>
+                            ${tese.nome}
+                        </div>
+                        <div class="document-meta">
+                            📅 ${new Date(tese.dataUpload).toLocaleDateString('pt-BR')} | 
+                            📁 ${tese.tamanho}
+                        </div>
+                    </div>
+                    <div class="document-actions">
+                        <button class="btn btn-warning btn-sm" onclick="toggleFavorito('${tese.id}')">
+                            ${favoritos.includes(tese.id) ? '⭐' : '☆'}
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="abrirDetalhes('${tese.id}')">
+                            👁️ Ver
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="removerDocumento('${tese.id}', 'tese')">
+                            🗑️ Remover
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('❌ Erro ao renderizar teses:', error);
+    }
 }
 
 function filtrarTeses() {
