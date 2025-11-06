@@ -262,13 +262,18 @@ function processarDadosCarregados() {
         });
         
         tesesVinculantes.forEach((tese) => {
-            // ✅ ID consistente usando tema da tese
-            const teseId = gerarIdConsistente('tese', tese.tema);
-            todosItens.push({
+            // ✅ USAR ID EXISTENTE (do localStorage) OU GERAR NOVO
+            const teseId = tese.id || gerarIdConsistente('tese', tese.tema);
+            
+            const teseComId = {
                 ...tese,
                 id: teseId,
-                source: 'tese'
-            });
+                source: 'tese',
+                tipo: tese.tipo || 'IRR'
+            };
+            
+            todosItens.push(teseComId);
+            console.log('📌 Tese adicionada ao todosItens:', teseId, '| Source:', teseComId.source, '| Tipo:', teseComId.tipo);
         });
         
         calcularEstatisticas();
@@ -797,8 +802,17 @@ function removerCorrelacao(id1, id2) {
 
 // ========== MODAL DE DETALHES ==========
 function abrirDetalhes(id) {
+    console.log('🔍 abrirDetalhes chamado com ID:', id);
     const item = todosItens.find(i => i.id === id);
-    if (!item) return;
+    
+    if (!item) {
+        console.error('❌ Item não encontrado em todosItens para ID:', id);
+        console.log('📋 IDs disponíveis em todosItens:', todosItens.map(i => ({id: i.id, source: i.source, tipo: i.tipo})));
+        mostrarToast('Erro: Item não encontrado', 'error');
+        return;
+    }
+    
+    console.log('✅ Item encontrado:', item.id, '| Source:', item.source, '| Tipo:', item.tipo, '| Tema:', item.tema);
     
     currentModalItem = item;
     
