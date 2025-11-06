@@ -598,10 +598,14 @@ function toggleFavorito(id) {
     
     localStorage.setItem('juristst_favoritos', JSON.stringify(favoritos));
     
+    // ✅ Atualizar visualização de acordo com a aba ativa
     if (currentTab === 'jurisprudencia') {
         renderizarResultados();
     } else if (currentTab === 'favoritos') {
         renderizarFavoritos();
+    } else if (currentTab === 'teses') {
+        // ✅ Atualizar também a lista de teses
+        filtrarTeses();
     }
 }
 
@@ -814,7 +818,9 @@ function abrirDetalhes(id) {
     }[tipo] || tipo;
     
     // ✅ CORREÇÃO 3: TESES COM ANOTAÇÕES E TAGS
-    if (item.source === 'tese') {
+    // Verificação dupla para garantir detecção de teses
+    if (item.source === 'tese' || item.tema) {
+        console.log('🎯 Detectada tese, abrindo modal especializado:', item.id);
         abrirModalTese(item);
         return;
     }
