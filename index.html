@@ -66,6 +66,17 @@
             opacity: 0.9;
         }
         
+        /* ✅ Badge de versão */
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            margin-left: 10px;
+            font-weight: normal;
+        }
+        
         /* Tabs Navigation */
         .tabs-nav {
             background: white;
@@ -145,6 +156,20 @@
             transform: translateY(-50%);
             font-size: 1.5em;
             color: var(--text-light);
+        }
+        
+        /* ✅ Indicador de busca normalizada */
+        .search-hint {
+            font-size: 0.85em;
+            color: var(--text-light);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .search-hint .icon {
+            color: var(--success);
         }
         
         /* Filters */
@@ -312,6 +337,7 @@
             display: flex;
             gap: 30px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .stat-item {
@@ -339,18 +365,26 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         
         .toolbar-left {
             display: flex;
             gap: 20px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .toolbar-right {
             display: flex;
             gap: 15px;
             align-items: center;
+        }
+        
+        .toolbar-info {
+            color: var(--text-light);
+            font-size: 0.95em;
         }
         
         /* Buttons */
@@ -365,6 +399,7 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            text-decoration: none;
         }
         
         .btn-primary {
@@ -628,6 +663,7 @@
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
+            flex-wrap: wrap;
         }
         
         .indicator {
@@ -689,24 +725,21 @@
             text-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
         }
         
-        .card-action .tooltip {
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--text-dark);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
         }
         
-        .card-action:hover .tooltip {
-            opacity: 1;
+        .status-badge.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge.suspended {
+            background: #fff3cd;
+            color: #856404;
         }
         
         /* Modal */
@@ -720,13 +753,13 @@
             background: rgba(0, 0, 0, 0.7);
             z-index: 1000;
             animation: fadeIn 0.3s;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
         }
         
         .modal.active {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
         }
         
         .modal-content {
@@ -753,6 +786,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap;
         }
         
         .modal-close {
@@ -779,7 +813,8 @@
             margin-bottom: 25px;
         }
         
-        .modal-section h3 {
+        .modal-section h3,
+        .modal-section-title {
             color: var(--primary);
             font-size: 1.3em;
             margin-bottom: 15px;
@@ -923,6 +958,16 @@
             transform: scale(1.2);
         }
         
+        .tags-input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .tags-input-container input {
+            flex: 1;
+        }
+        
         /* Related Items Section */
         .related-section {
             background: #f5f5f5;
@@ -998,6 +1043,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
         /* Toast Notification */
@@ -1032,6 +1079,10 @@
         
         .toast.warning {
             background: var(--warning);
+        }
+        
+        .toast.info {
+            background: var(--info);
         }
         
         /* Empty State */
@@ -1079,6 +1130,10 @@
         
         /* Responsive Design */
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
             .header h1 {
                 font-size: 1.8em;
             }
@@ -1128,6 +1183,12 @@
             .document-list {
                 padding: 0 20px 20px;
             }
+            
+            .search-section,
+            .content,
+            .toolbar {
+                padding: 20px;
+            }
         }
         
         /* Loading Spinner */
@@ -1165,13 +1226,26 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #2980b9;
         }
+        
+        /* ✅ Result Type Badge */
+        .result-type {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>⚖️ JurisTST</h1>
+            <h1>
+                ⚖️ JurisTST
+                <span class="version-badge">v3.1 - Fase 1</span>
+            </h1>
             <p>Sistema Inteligente de Busca de Jurisprudência do TST</p>
         </div>
         
@@ -1199,6 +1273,10 @@
                     <input type="text" id="searchInput" placeholder="Buscar por número, título ou conteúdo..." 
                            onkeyup="realizarBusca()">
                     <span class="search-icon">🔍</span>
+                </div>
+                <div class="search-hint">
+                    <span class="icon">✅</span>
+                    <span>Busca normalizada ativa - não precisa usar acentos!</span>
                 </div>
                 
                 <div class="filters">
@@ -1288,10 +1366,10 @@
                 </div>
                 <div class="toolbar-right">
                     <div class="view-toggle">
-                        <button class="view-btn active" id="viewGrid" onclick="mudarVisualizacao('grid')">
+                        <button class="view-btn active" id="viewGrid" onclick="mudarVisualizacao('grid')" title="Visualização em grade">
                             ▦
                         </button>
-                        <button class="view-btn" id="viewList" onclick="mudarVisualizacao('list')">
+                        <button class="view-btn" id="viewList" onclick="mudarVisualizacao('list')" title="Visualização em lista">
                             ☰
                         </button>
                     </div>
@@ -1315,9 +1393,10 @@
                  ondragleave="handleDragLeave(event)">
                 <div class="upload-icon">📄</div>
                 <h3>➕ Adicionar Novo Informativo</h3>
-                <p>Arraste arquivos PDF ou TXT aqui ou clique para selecionar</p>
+                <p>Arraste arquivos PDF aqui ou clique para selecionar</p>
+                <p style="margin-top: 10px; font-size: 0.85em;">✅ Texto será extraído automaticamente para busca</p>
                 <input type="file" id="informativoFile" class="file-input" 
-                       accept=".pdf,.txt" onchange="handleFileSelect(event, 'informativo')">
+                       accept=".pdf" onchange="handleFileSelect(event, 'informativo')" multiple>
             </div>
             
             <div class="document-list" id="informativosList">
@@ -1345,6 +1424,10 @@
                     <input type="text" id="searchTeseInput" placeholder="Buscar por tema, processo ou conteúdo da tese..." 
                            onkeyup="filtrarTeses()">
                     <span class="search-icon">🔍</span>
+                </div>
+                <div class="search-hint">
+                    <span class="icon">✅</span>
+                    <span>Busca normalizada ativa - funciona sem acentos!</span>
                 </div>
                 
                 <div class="filters">
@@ -1374,11 +1457,11 @@
                 </div>
             </div>
             
-            <div class="document-list" id="tesesList">
+            <div class="content" id="tesesList">
                 <div class="empty-state">
                     <h3>📋 Nenhuma tese vinculante cadastrada</h3>
                     <p>Use o painel Admin para adicionar teses vinculantes do TST</p>
-                    <a href="admin.html" class="btn btn-primary" style="margin-top: 20px; display: inline-block;">
+                    <a href="admin.html" class="btn btn-primary" style="margin-top: 20px;">
                         🔧 Ir para Admin
                     </a>
                 </div>
