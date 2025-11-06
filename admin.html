@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - JurisTST</title>
+    <title>Admin - JurisTST v3.1</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -43,6 +43,18 @@
         .subtitle {
             color: #7f8c8d;
             margin-bottom: 30px;
+        }
+        
+        /* ✅ Badge de versão */
+        .version-badge {
+            display: inline-block;
+            background: var(--success);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin-left: 10px;
+            font-weight: normal;
         }
         
         .section {
@@ -191,17 +203,28 @@
             display: flex;
             gap: 10px;
             margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔧 Administração - JurisTST</h1>
-        <p class="subtitle">Atualizar base de dados de jurisprudência</p>
+        <h1>🔧 Administração - JurisTST<span class="version-badge">v3.1 - Fase 1</span></h1>
+        <p class="subtitle">Atualizar base de dados de jurisprudência e teses vinculantes</p>
         
         <!-- Estatísticas Atuais -->
         <div class="section">
-            <h2>📊 Dados Atuais</h2>
+            <h2>📊 Dados Atuais da Jurisprudência</h2>
             <div class="stats" id="statsAtuais">
                 <div class="stat-card">
                     <div class="stat-value" id="statSumulas">-</div>
@@ -224,7 +247,7 @@
         
         <!-- Upload de Novo JSON -->
         <div class="section">
-            <h2>📤 Atualizar Base de Dados</h2>
+            <h2>📤 Atualizar Base de Jurisprudência</h2>
             <p style="margin-bottom: 15px; color: #7f8c8d;">
                 Faça upload de um arquivo JSON com os dados atualizados da jurisprudência do TST
             </p>
@@ -288,6 +311,9 @@
                 <div class="upload-icon">📋</div>
                 <h3>Carregar JSON de Teses Vinculantes</h3>
                 <p>Arraste o arquivo JSON aqui ou clique para selecionar</p>
+                <p style="margin-top: 10px; font-size: 0.85em; color: #7f8c8d;">
+                    ℹ️ Formato esperado: <code>{"teses": [...]}</code>
+                </p>
                 <input type="file" id="tesesFile" accept=".json" onchange="handleTesesFileSelect(event)">
             </div>
             
@@ -307,7 +333,8 @@
         <div class="section">
             <h2>📝 Log de Operações</h2>
             <div class="log" id="logArea">
-                <div class="log-line log-success">✅ Sistema pronto</div>
+                <div class="log-line log-success">✅ Sistema pronto - v3.1 Fase 1</div>
+                <div class="log-line" style="color: #3498db;">📌 Correções aplicadas: IDs consistentes, busca normalizada, anotações em teses</div>
             </div>
         </div>
         
@@ -318,7 +345,7 @@
                 <button class="btn btn-primary" onclick="window.location.href='index.html'">
                     🏠 Voltar para o Site
                 </button>
-                <button class="btn btn-secondary" onclick="exportarDados()" style="background: #95a5a6;">
+                <button class="btn btn-secondary" onclick="exportarDados()" style="background: #95a5a6; color: white;">
                     💾 Exportar Dados Atuais
                 </button>
             </div>
@@ -363,13 +390,13 @@
         function handleDragOver(e) {
             e.preventDefault();
             e.stopPropagation();
-            document.getElementById('uploadArea').classList.add('dragover');
+            e.target.closest('.upload-area').classList.add('dragover');
         }
         
         function handleDragLeave(e) {
             e.preventDefault();
             e.stopPropagation();
-            document.getElementById('uploadArea').classList.remove('dragover');
+            e.target.closest('.upload-area').classList.remove('dragover');
         }
         
         function handleDrop(e) {
@@ -438,8 +465,8 @@
                 • <strong>Total: ${total} itens</strong>
             `;
             
-            if (total < 1000) {
-                mensagem += '<br><br>⚠️ <strong>Atenção:</strong> O arquivo parece estar incompleto (menos de 1000 itens).';
+            if (total < 700) {
+                mensagem += '<br><br>⚠️ <strong>Atenção:</strong> O arquivo parece estar incompleto (menos de 700 itens).';
                 mostrarAlerta(mensagem, 'warning');
             } else {
                 mensagem += '<br><br>✅ Arquivo parece completo!';
@@ -669,6 +696,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             carregarDadosAtuais();
             carregarEstatisticasTeses();
+            log('🚀 JurisTST Admin v3.1 - Fase 1 inicializado', 'success');
         });
     </script>
 </body>
