@@ -1659,6 +1659,257 @@ window.limparTodosDados = function() {
     }, 2000);
 };
 
+// ========== TESES VINCULANTES ==========
+
+function filtrarTeses() {
+    const tipoFiltro = document.getElementById('filterTipoTese')?.value || 'todos';
+    const searchTerm = document.getElementById('searchTeseInput')?.value?.toLowerCase() || '';
+    
+    let tesesFiltradas = tesesVinculantes;
+    
+    // Filtrar por tipo
+    if (tipoFiltro !== 'todos') {
+        tesesFiltradas = tesesFiltradas.filter(tese => {
+            const tipo = tese.tipo?.toLowerCase() || '';
+            return tipo === tipoFiltro;
+        });
+    }
+    
+    // Filtrar por busca
+    if (searchTerm) {
+        tesesFiltradas = tesesFiltradas.filter(tese => {
+            const tema = (tese.tema || '').toLowerCase();
+            const processo = (tese.numero_processo || '').toLowerCase();
+            const teseTexto = (tese.tese || '').toLowerCase();
+            const tags = (tese.tags || []).join(' ').toLowerCase();
+            
+            return tema.includes(searchTerm) ||
+                   processo.includes(searchTerm) ||
+                   teseTexto.includes(searchTerm) ||
+                   tags.includes(searchTerm);
+        });
+    }
+    
+    renderizarTeses(tesesFiltradas);
+}
+
+function renderizarTeses(teses = tesesVinculantes) {
+    const container = document.getElementById('tesesList');
+    
+    // Atualizar contador
+    const countElement = document.getElementById('tesesCount');
+    if (countElement) {
+        countElement.textContent = `${teses.length} ${teses.length === 1 ? 'tese encontrada' : 'teses encontradas'}`;
+    }
+    
+    if (!teses || teses.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>📋 Nenhuma tese encontrada</h3>
+                <p>Use o painel Admin para adicionar teses vinculantes</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="results-grid">';
+    
+    teses.forEach(tese => {
+        const isFavorito = favoritos.includes(tese.id || `tese-${tese.tema}`);
+        const statusClass = tese.decisao_suspensao ? 'suspended' : 'active';
+        const statusIcon = tese.decisao_suspensao ? '⏸️' : '✅';
+        const statusText = tese.decisao_suspensao ? 'Com Suspensão' : 'Ativo';
+        
+        // Determinar cor do badge pelo tipo
+        let tipoBadgeColor = '#3498db';
+        if (tese.tipo === 'IRDR') tipoBadgeColor = '#e74c3c';
+        if (tese.tipo === 'IAC') tipoBadgeColor = '#f39c12';
+        if (tese.tipo === 'RRAg') tipoBadgeColor = '#9b59b6';
+        
+        html += `
+            <div class="result-card" onclick="abrirModalTese('${tese.tema}')">
+                <div class="result-header">
+                    <div class="result-number">
+                        <span class="result-type" style="background: ${tipoBadgeColor};">${tese.tipo || 'IRR'}</span>
+                        <span class="result-num">Tema ${tese.tema}</span>
+                    </div>
+                    <button class="favorite-btn ${isFavorito ? 'active' : ''}" 
+                            onclick="event.stopPropagation(); toggleFavoritoTese('${tese.tema}')">
+                        ${isFavorito ? '⭐' : '☆'}
+                    </button>
+                </div>
+                
+                <div class="result-title">${tese.numero_processo || 'Sem processo'}</div>
+                
+                <div class="result-preview">
+                    ${truncateText(tese.tese || 'Sem tese disponível', 150)}
+                </div>
+                
+                <div class="result-footer">
+                    <span class="status-badge ${statusClass}">
+                        ${statusIcon} ${statusText}
+                    </span>
+                    ${tese.acordao ? `<span class="result-meta">${tese.acordao}</span>` : ''}
+                </div>
+                
+                ${tese.tags && tese.tags.length > 0 ? `
+                    <div class="result-tags">
+                        ${tese.tags.slice(0, 3).map(tag => 
+                            `<span class="tag">${tag}</span>`
+                        ).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function abrirModalTese(tema) {
+    const tese = tesesVinculantes.find(t => t.tema === tema);
+    if (!tese) return;
+    
+    currentModalItem = { id: `tese-${tema}`, type: 'tese', data: tese };
+    
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    
+    // Título
+    modalTitle.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span class="result-type" style="background: #3498db; padding: 8px 16px; border-radius: 8px;">
+                ${tese.tipo || 'IRR'}
+            </span>
+            <span>Tema ${tese.tema}</span>
+        </div>
+    `;
+    
+    // Corpo do modal
+    let html = `
+        <div class="modal-section">
+            <h3 class="modal-section-title">📋 Processo Representativo</h3>
+            <p class="modal-text"><strong>${tese.numero_processo || 'Não informado'}</strong></p>
+            ${tese.acordao ? `<p class="modal-text" style="color: #7f8c8d;">${tese.acordao}</p>` : ''}
+        </div>
+    `;
+    
+    if (tese.relator) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">👤 Relator(a)</h3>
+                <p class="modal-text">${tese.relator}</p>
+            </div>
+        `;
+    }
+    
+    html += `
+        <div class="modal-section">
+            <h3 class="modal-section-title">⚖️ Tese Jurídica</h3>
+            <div class="modal-text" style="text-align: justify; line-height: 1.8;">
+                ${tese.tese || 'Tese não disponível'}
+            </div>
+        </div>
+    `;
+    
+    if (tese.ultimo_movimento) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">📊 Último Movimento</h3>
+                <p class="modal-text">${tese.ultimo_movimento}</p>
+            </div>
+        `;
+    }
+    
+    if (tese.decisao_suspensao) {
+        html += `
+            <div class="modal-section" style="background: #fff3cd; border-left: 4px solid #f39c12;">
+                <h3 class="modal-section-title" style="color: #856404;">⚠️ Decisão de Suspensão</h3>
+                <p class="modal-text" style="color: #856404;">
+                    Este tema possui decisão de suspensão de processos
+                </p>
+            </div>
+        `;
+    }
+    
+    // Links
+    if (tese.link_processo || tese.link_pdf) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">🔗 Links Oficiais</h3>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        `;
+        
+        if (tese.link_processo) {
+            html += `
+                <a href="${tese.link_processo}" target="_blank" class="btn btn-sm btn-secondary">
+                    📄 Ver Processo no TST
+                </a>
+            `;
+        }
+        
+        if (tese.link_pdf) {
+            html += `
+                <a href="${tese.link_pdf}" target="_blank" class="btn btn-sm btn-secondary">
+                    📑 Baixar PDF
+                </a>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    }
+    
+    // Tags
+    if (tese.tags && tese.tags.length > 0) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">🏷️ Tags</h3>
+                <div class="result-tags">
+                    ${tese.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    modalBody.innerHTML = html;
+    
+    // Atualizar botão de favorito
+    const isFavorito = favoritos.includes(`tese-${tema}`);
+    const favBtn = document.getElementById('favoritoModalBtn');
+    if (favBtn) {
+        favBtn.textContent = isFavorito ? '⭐ Remover dos Favoritos' : '⭐ Favoritar';
+    }
+    
+    modal.classList.add('active');
+}
+
+function toggleFavoritoTese(tema) {
+    const teseId = `tese-${tema}`;
+    const index = favoritos.indexOf(teseId);
+    
+    if (index > -1) {
+        favoritos.splice(index, 1);
+        mostrarToast('Removido dos favoritos', 'info');
+    } else {
+        favoritos.push(teseId);
+        mostrarToast('Adicionado aos favoritos', 'success');
+    }
+    
+    localStorage.setItem('juristst_favoritos', JSON.stringify(favoritos));
+    
+    // Atualizar visualização
+    if (currentTab === 'teses') {
+        filtrarTeses();
+    } else if (currentTab === 'favoritos') {
+        renderizarFavoritos();
+    }
+}
+
 // ========== INICIALIZAÇÃO ==========
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 JurisTST - Sistema Inteligente de Busca de Jurisprudência');
