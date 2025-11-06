@@ -1339,33 +1339,48 @@
         
         <!-- Tab Content: Teses Vinculantes -->
         <div id="teses" class="tab-content">
-            <div class="filters" style="padding: 20px 40px;">
-                <div class="filter-group">
-                    <label>Tipo de Tese</label>
-                    <select id="filterTipoTese" onchange="filtrarTeses()">
-                        <option value="todos">Todas</option>
-                        <option value="irr">IRR - Incidente de Recursos Repetitivos</option>
-                        <option value="irdr">IRDR - Incidente de Resolução de Demandas Repetitivas</option>
-                        <option value="iac">IAC - Incidente de Assunção de Competência</option>
-                    </select>
+            <!-- Search Section -->
+            <div class="search-section">
+                <div class="search-box">
+                    <input type="text" id="searchTeseInput" placeholder="Buscar por tema, processo ou conteúdo da tese..." 
+                           onkeyup="filtrarTeses()">
+                    <span class="search-icon">🔍</span>
+                </div>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Tipo de Tese</label>
+                        <select id="filterTipoTese" onchange="filtrarTeses()">
+                            <option value="todos">Todas</option>
+                            <option value="irr">IRR - Incidente de Recursos Repetitivos</option>
+                            <option value="irdr">IRDR - Incidente de Resolução de Demandas Repetitivas</option>
+                            <option value="iac">IAC - Incidente de Assunção de Competência</option>
+                            <option value="rr">RR - Recurso de Revista</option>
+                            <option value="rrag">RRAg - Agravo em Recurso de Revista</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
-            <div class="upload-area" onclick="document.getElementById('teseFile').click()" 
-                 ondrop="handleDrop(event, 'tese')" 
-                 ondragover="handleDragOver(event)" 
-                 ondragleave="handleDragLeave(event)">
-                <div class="upload-icon">📋</div>
-                <h3>➕ Adicionar Nova Tese Vinculante</h3>
-                <p>Arraste arquivos PDF ou TXT aqui ou clique para selecionar</p>
-                <p style="font-size: 0.9em; margin-top: 10px;">IRR | IRDR | IAC</p>
-                <input type="file" id="teseFile" class="file-input" 
-                       accept=".pdf,.txt" onchange="handleFileSelect(event, 'tese')">
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <span class="toolbar-info" id="tesesCount">0 teses encontradas</span>
+                </div>
+                <div class="toolbar-right">
+                    <a href="admin.html" class="btn btn-sm btn-primary">
+                        ➕ Gerenciar Teses
+                    </a>
+                </div>
             </div>
             
             <div class="document-list" id="tesesList">
                 <div class="empty-state">
-                    <p>Nenhuma tese vinculante adicionada ainda</p>
+                    <h3>📋 Nenhuma tese vinculante cadastrada</h3>
+                    <p>Use o painel Admin para adicionar teses vinculantes do TST</p>
+                    <a href="admin.html" class="btn btn-primary" style="margin-top: 20px; display: inline-block;">
+                        🔧 Ir para Admin
+                    </a>
                 </div>
             </div>
         </div>
