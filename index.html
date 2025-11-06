@@ -1400,6 +1400,20 @@
     <!-- Toast -->
     <div id="toast" class="toast"></div>
     
+    <!-- Link para Admin (canto inferior direito) -->
+    <a href="admin.html" style="position: fixed; bottom: 20px; right: 20px; background: var(--secondary); color: white; padding: 12px 20px; border-radius: 50px; text-decoration: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-weight: 600; transition: all 0.3s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        🔧 Admin
+    </a>
+    
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configurar worker do PDF.js
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+    
     <script src="app.js"></script>
 </body>
 </html>
