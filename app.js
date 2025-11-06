@@ -86,8 +86,27 @@ async function carregarJurisprudencia() {
         
         // Garantir que os arrays existam
         dadosTST.sumulas = Array.isArray(dadosTST.sumulas) ? dadosTST.sumulas : [];
-        dadosTST.ojs = Array.isArray(dadosTST.ojs) ? dadosTST.ojs : [];
-        dadosTST.precedentes = Array.isArray(dadosTST.precedentes) ? dadosTST.precedentes : [];
+        
+        // OJs é um dicionário com subgrupos, precisamos combinar todos
+        let ojsArray = [];
+        if (dadosTST.ojs && typeof dadosTST.ojs === 'object') {
+            // Iterar sobre cada subgrupo de OJs
+            for (const [orgao, ojs] of Object.entries(dadosTST.ojs)) {
+                if (Array.isArray(ojs)) {
+                    // Adicionar informação do órgão a cada OJ
+                    const ojsComOrgao = ojs.map(oj => ({
+                        ...oj,
+                        orgao: orgao.toUpperCase().replace('_', '-')
+                    }));
+                    ojsArray = ojsArray.concat(ojsComOrgao);
+                }
+            }
+        }
+        dadosTST.ojs = ojsArray;
+        
+        // Precedentes Normativos
+        dadosTST.precedentes = Array.isArray(dadosTST.precedentes_normativos) ? 
+            dadosTST.precedentes_normativos : [];
         
         console.log(`📚 Súmulas: ${dadosTST.sumulas.length}`);
         console.log(`📋 OJs: ${dadosTST.ojs.length}`);
@@ -95,9 +114,9 @@ async function carregarJurisprudencia() {
         
         // Combinar todos os itens em um array único
         todosItens = [
-            ...dadosTST.sumulas.map(item => ({...item})),
-            ...dadosTST.ojs.map(item => ({...item})),
-            ...dadosTST.precedentes.map(item => ({...item}))
+            ...dadosTST.sumulas.map(item => ({...item, tipo: item.tipo || 'sumula'})),
+            ...dadosTST.ojs.map(item => ({...item, tipo: item.tipo || 'oj'})),
+            ...dadosTST.precedentes.map(item => ({...item, tipo: item.tipo || 'precedente'}))
         ];
         
         console.log(`📦 Total de itens combinados: ${todosItens.length}`);
@@ -637,6 +656,106 @@ function abrirDetalhes(id) {
         'iac': 'IAC'
     }[tipo] || tipo;
     
+    // Para informativos e teses (documentos uploaded)
+    if (item.source === 'informativo' || item.source === 'tese') {
+        modalTitle.innerHTML = `
+            ${tipoDisplay} ${item.nome || ''}
+        `;
+        
+        let bodyHtml = `
+            <div class="modal-section">
+                <h3>📄 Documento</h3>
+                <div style="padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>Nome:</strong> ${item.nome}
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <strong>Data:</strong> ${new Date(item.dataUpload).toLocaleDateString('pt-BR')}
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <strong>Tamanho:</strong> ${item.tamanho}
+                    </div>
+        `;
+        
+        // Se for PDF, mostrar visualizador
+        if (item.nome && item.nome.toLowerCase().endsWith('.pdf')) {
+            if (item.conteudo) {
+                bodyHtml += `
+                    <div style="margin-top: 15px;">
+                        <iframe src="${item.conteudo}" 
+                                style="width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 4px;"
+                                frameborder="0">
+                        </iframe>
+                    </div>
+                `;
+            } else {
+                bodyHtml += `
+                    <div style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin-top: 15px;">
+                        ⚠️ <strong>PDF carregado mas conteúdo não disponível para visualização</strong><br>
+                        <small>Isso é normal para arquivos carregados localmente. O arquivo está salvo no navegador.</small>
+                    </div>
+                `;
+            }
+        } else if (item.texto) {
+            // Se for TXT ou tiver texto extraído
+            bodyHtml += `
+                <div style="margin-top: 15px; max-height: 400px; overflow-y: auto; padding: 15px; background: white; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; font-family: monospace; font-size: 0.9em;">
+${item.texto}
+                </div>
+            `;
+        }
+        
+        bodyHtml += `</div></div>`;
+        
+        // Seção de Anotações
+        const anotacao = anotacoes[item.id] || '';
+        bodyHtml += `
+            <div class="annotation-section">
+                <div class="annotation-header">
+                    <div class="annotation-title">
+                        📝 Anotações Pessoais
+                    </div>
+                </div>
+                <textarea id="annotationTextarea" class="annotation-textarea" 
+                          placeholder="Adicione suas anotações sobre este documento..." 
+                          onchange="salvarAnotacao('${item.id}', this.value)">${anotacao}</textarea>
+                <div class="annotation-saved">✅ Anotação salva</div>
+            </div>
+        `;
+        
+        // Seção de Tags
+        const itemTags = tags[item.id] || [];
+        bodyHtml += `
+            <div class="tags-section">
+                <div class="tags-header">
+                    <div class="tags-title">🏷️ Tags</div>
+                </div>
+                <div class="tags-list" id="tagsList">
+                    ${itemTags.map(tag => `
+                        <span class="tag-item">
+                            ${tag}
+                            <button onclick="removerTag('${item.id}', '${tag}')" class="tag-remove">×</button>
+                        </span>
+                    `).join('')}
+                </div>
+                <div class="tags-input-container">
+                    <input type="text" id="tagInput" 
+                           placeholder="Digite uma tag e pressione Enter" 
+                           onkeypress="if(event.key==='Enter'){adicionarTag('${item.id}', this.value); this.value='';}">
+                    <button onclick="adicionarTag('${item.id}', document.getElementById('tagInput').value); document.getElementById('tagInput').value='';" 
+                            class="btn btn-primary btn-sm">
+                        Adicionar
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        modalBody.innerHTML = bodyHtml;
+        modal.style.display = 'flex';
+        return;
+    }
+    
+    // Para jurisprudência (súmulas, OJs, precedentes) - código original
     modalTitle.innerHTML = `
         ${tipoDisplay} ${item.numero || item.nome || ''}
         ${item.cancelada ? '<span class="canceled-badge">❌ CANCELADA</span>' : ''}
