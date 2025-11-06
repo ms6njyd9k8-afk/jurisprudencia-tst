@@ -69,7 +69,25 @@ function carregarDados() {
 
 async function carregarJurisprudencia() {
     try {
-        console.log('🔄 Iniciando carregamento do JSON...');
+        // PRIORIDADE 1: Tentar carregar do localStorage (dados atualizados via admin)
+        const dadosLocais = localStorage.getItem('juristst_data');
+        if (dadosLocais) {
+            try {
+                dadosTST = JSON.parse(dadosLocais);
+                console.log('✅ Dados carregados do localStorage (atualizados via admin)');
+                console.log('📊 Dados carregados:', dadosTST);
+                
+                // Processar dados do localStorage
+                processarDadosCarregados();
+                return;
+            } catch (error) {
+                console.warn('⚠️ Erro nos dados locais, carregando do JSON...', error);
+                localStorage.removeItem('juristst_data'); // Limpar dados corrompidos
+            }
+        }
+        
+        // PRIORIDADE 2: Carregar do JSON no GitHub (fallback)
+        console.log('🔄 Carregando do JSON no GitHub...');
         const response = await fetch('tst_data_complete.json');
         
         if (!response.ok) {
@@ -77,8 +95,18 @@ async function carregarJurisprudencia() {
         }
         
         dadosTST = await response.json();
-        console.log('📊 JSON carregado:', dadosTST);
+        console.log('📊 JSON carregado do GitHub:', dadosTST);
         
+        processarDadosCarregados();
+        processarDadosCarregados();
+    } catch (error) {
+        console.error('❌ Erro ao carregar jurisprudência:', error);
+        mostrarToast('Erro ao carregar dados da jurisprudência', 'error');
+    }
+}
+
+function processarDadosCarregados() {
+    try {
         // Validar estrutura do JSON
         if (!dadosTST || typeof dadosTST !== 'object') {
             throw new Error('JSON inválido: não é um objeto');
@@ -151,22 +179,10 @@ async function carregarJurisprudencia() {
         itensFiltrados = todosItens.filter(item => item.source === 'jurisprudencia');
         renderizarResultados();
         
-        console.log(`✅ ${todosItens.length} itens carregados com sucesso!`);
+        console.log('✅ Processamento concluído com sucesso');
     } catch (error) {
-        console.error('❌ Erro ao carregar dados:', error);
-        console.error('Stack:', error.stack);
-        
-        const contentEl = document.querySelector('.content');
-        if (contentEl) {
-            contentEl.innerHTML = `
-                <div class="empty-state">
-                    <h3>⚠️ Erro ao carregar dados</h3>
-                    <p>Por favor, certifique-se de que o arquivo tst_data_complete.json está disponível.</p>
-                    <p style="color: red; font-size: 0.9em; margin-top: 10px;"><strong>Erro:</strong> ${error.message}</p>
-                    <p style="font-size: 0.85em; margin-top: 10px;">Verifique o Console do navegador (F12) para mais detalhes.</p>
-                </div>
-            `;
-        }
+        console.error('❌ Erro no processamento:', error);
+        mostrarToast('Erro ao processar dados', 'error');
     }
 }
 
@@ -292,7 +308,8 @@ function realizarBusca() {
         
         // Busca textual
         if (searchTerm) {
-            const textoCompleto = `${item.numero} ${item.titulo || ''} ${item.texto || ''}`.toLowerCase();
+            // Incluir texto extraído de PDFs na busca
+            const textoCompleto = `${item.numero} ${item.titulo || ''} ${item.texto || ''} ${item.textoExtraido || ''}`.toLowerCase();
             const termos = searchTerm.split(' ').filter(t => t.length > 2);
             
             // Buscar também nas anotações
@@ -907,11 +924,70 @@ ${item.texto}
 
 function fecharModal() {
     const modal = document.getElementById('modal');
+    const modalBody = document.getElementById('modalBody');
+    
+    // CRÍTICO: Limpar iframes antes de fechar para evitar travamentos
+    const iframes = modalBody.querySelectorAll('iframe');
+    iframes.forEach(iframe => {
+        iframe.src = 'about:blank'; // Libera memória e recursos
+        iframe.remove();
+    });
+    
+    // Limpar todo o conteúdo do modal
+    modalBody.innerHTML = '';
+    
+    // Fechar modal
     modal.classList.remove('active');
     currentModalItem = null;
+    
+    console.log('✅ Modal fechado e recursos liberados');
 }
 
 // ========== UPLOAD DE ARQUIVOS ==========
+
+// Função para extrair texto de PDF usando PDF.js
+async function extrairTextoPDF(file) {
+    try {
+        console.log('📄 Iniciando extração de texto do PDF:', file.name);
+        
+        // Converter arquivo para ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Carregar PDF
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        
+        console.log(`📊 PDF carregado: ${pdf.numPages} páginas`);
+        
+        let textoCompleto = '';
+        
+        // Extrair texto de cada página
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            
+            // Combinar todos os items de texto da página
+            const pageText = textContent.items
+                .map(item => item.str)
+                .join(' ');
+            
+            textoCompleto += pageText + '\n\n';
+            
+            // Log de progresso
+            if (pageNum % 10 === 0 || pageNum === pdf.numPages) {
+                console.log(`📖 Extraídas ${pageNum}/${pdf.numPages} páginas`);
+            }
+        }
+        
+        console.log(`✅ Extração concluída: ${textoCompleto.length} caracteres`);
+        return textoCompleto;
+        
+    } catch (error) {
+        console.error('❌ Erro na extração de texto:', error);
+        throw error;
+    }
+}
+
 function handleFileSelect(event, tipo) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -943,49 +1019,62 @@ function handleDragLeave(event) {
 }
 
 function processarArquivo(file, tipo) {
-    if (!file.type.includes('pdf') && !file.type.includes('text')) {
-        mostrarToast('Por favor, selecione apenas arquivos PDF ou TXT', 'error');
+    // Apenas PDFs são suportados
+    if (!file.type.includes('pdf')) {
+        mostrarToast('Por favor, selecione apenas arquivos PDF', 'error');
         return;
     }
     
-    const reader = new FileReader();
+    // Verificar se PDF.js está disponível
+    if (typeof pdfjsLib === 'undefined') {
+        mostrarToast('PDF.js não carregado. Recarregue a página.', 'error');
+        console.error('❌ PDF.js não disponível');
+        return;
+    }
     
-    reader.onload = function(e) {
-        const novoItem = {
-            id: `${tipo}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            nome: file.name,
-            tipo: tipo === 'tese' ? obterTipoTese() : tipo,
-            dataUpload: new Date().toISOString(),
-            tamanho: formatarTamanho(file.size),
-            conteudo: e.target.result,
-            source: tipo
+    mostrarToast('📄 Extraindo texto do PDF...', 'info');
+    
+    // Extrair texto do PDF
+    extrairTextoPDF(file).then(textoExtraido => {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            const novoItem = {
+                id: `${tipo}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                nome: file.name,
+                tipo: tipo === 'tese' ? obterTipoTese() : tipo,
+                dataUpload: new Date().toISOString(),
+                tamanho: formatarTamanho(file.size),
+                conteudo: e.target.result, // Data URL do PDF
+                textoExtraido: textoExtraido, // ✅ TEXTO PARA BUSCA
+                source: tipo
+            };
+            
+            if (tipo === 'informativo') {
+                informativos.push(novoItem);
+                localStorage.setItem('juristst_informativos', JSON.stringify(informativos));
+                renderizarInformativos();
+            } else if (tipo === 'tese') {
+                tesesVinculantes.push(novoItem);
+                localStorage.setItem('juristst_teses', JSON.stringify(tesesVinculantes));
+                renderizarTeses();
+            }
+            
+            // Adicionar ao array geral
+            todosItens.push(novoItem);
+            
+            mostrarToast(`✅ ${file.name} adicionado com sucesso (texto extraído)`, 'success');
         };
         
-        if (tipo === 'informativo') {
-            informativos.push(novoItem);
-            localStorage.setItem('juristst_informativos', JSON.stringify(informativos));
-            renderizarInformativos();
-        } else if (tipo === 'tese') {
-            tesesVinculantes.push(novoItem);
-            localStorage.setItem('juristst_teses', JSON.stringify(tesesVinculantes));
-            renderizarTeses();
-        }
+        reader.onerror = function() {
+            mostrarToast(`Erro ao ler o arquivo ${file.name}`, 'error');
+        };
         
-        // Adicionar ao array geral
-        todosItens.push(novoItem);
-        
-        mostrarToast(`${file.name} adicionado com sucesso`, 'success');
-    };
-    
-    reader.onerror = function() {
-        mostrarToast(`Erro ao ler o arquivo ${file.name}`, 'error');
-    };
-    
-    if (file.type.includes('text')) {
-        reader.readAsText(file);
-    } else {
         reader.readAsDataURL(file);
-    }
+    }).catch(error => {
+        console.error('❌ Erro ao extrair texto:', error);
+        mostrarToast('Erro ao extrair texto do PDF. Tente novamente.', 'error');
+    });
 }
 
 function obterTipoTese() {
@@ -1502,9 +1591,25 @@ window.limparTodosDados = function() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 JurisTST - Sistema Inteligente de Busca de Jurisprudência');
     console.log('📚 Desenvolvido para Renata - Assessoria Judicial TRT12');
-    console.log('⚖️ Versão 2.0 - Sistema Unificado');
+    console.log('⚖️ Versão 3.0 - Sistema Completo com PDF.js');
     
     carregarDados();
+    
+    // Event Listener: Fechar modal com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('modal');
+            if (modal && modal.classList.contains('active')) {
+                fecharModal();
+            }
+        }
+    });
+    
+    // Event Listener: Botão X do modal
+    const closeButton = document.querySelector('.modal-close');
+    if (closeButton) {
+        closeButton.addEventListener('click', fecharModal);
+    }
     
     // Adicionar listener para prevenir saída acidental
     window.addEventListener('beforeunload', function(e) {
