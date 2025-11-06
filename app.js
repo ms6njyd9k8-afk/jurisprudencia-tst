@@ -273,7 +273,7 @@ function processarDadosCarregados() {
             };
             
             todosItens.push(teseComId);
-            console.log('📌 Tese adicionada ao todosItens:', teseId, '| Source:', teseComId.source, '| Tipo:', teseComId.tipo);
+            console.log('📌 Tese adicionada ao todosItens:', teseId, '| Source:', teseComId.source, '| Tipo:', teseComId.tipo, '| Tema:', tese.tema);
         });
         
         calcularEstatisticas();
@@ -807,7 +807,7 @@ function abrirDetalhes(id) {
     
     if (!item) {
         console.error('❌ Item não encontrado em todosItens para ID:', id);
-        console.log('📋 IDs disponíveis em todosItens:', todosItens.map(i => ({id: i.id, source: i.source, tipo: i.tipo})));
+        console.log('📋 IDs disponíveis (primeiros 10):', todosItens.slice(0, 10).map(i => ({id: i.id, source: i.source})));
         mostrarToast('Erro: Item não encontrado', 'error');
         return;
     }
@@ -834,7 +834,7 @@ function abrirDetalhes(id) {
     // ✅ CORREÇÃO 3: TESES COM ANOTAÇÕES E TAGS
     // Verificação dupla para garantir detecção de teses
     if (item.source === 'tese' || item.tema) {
-        console.log('🎯 Detectada tese, abrindo modal especializado:', item.id);
+        console.log('🎯 Detectada tese, abrindo modal especializado:', item.id, '| Tema:', item.tema);
         abrirModalTese(item);
         return;
     }
@@ -1097,6 +1097,8 @@ ${item.texto}
 
 // ✅ CORREÇÃO 4: Modal de Teses com fechamento correto e anotações/tags
 function abrirModalTese(tese) {
+    console.log('🎯 abrirModalTese chamado para:', tese.id, '| Tema:', tese.tema);
+    
     currentModalItem = tese;
     
     const modal = document.getElementById('modal');
