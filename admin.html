@@ -252,6 +252,57 @@
             </div>
         </div>
         
+        <!-- Seção de Teses Vinculantes -->
+        <div class="section">
+            <h2>🎯 Gestão de Teses Vinculantes</h2>
+            <p style="margin-bottom: 15px; color: #7f8c8d;">
+                Gerencie as teses vinculantes (IRR, IRDR, IAC) do TST
+            </p>
+            
+            <!-- Estatísticas de Teses -->
+            <div class="stats" id="statsTeses" style="margin-bottom: 20px;">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTesesTotal">0</div>
+                    <div class="stat-label">Total de Teses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTesesIRR">0</div>
+                    <div class="stat-label">IRR</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTesesIRDR">0</div>
+                    <div class="stat-label">IRDR</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTesesIAC">0</div>
+                    <div class="stat-label">IAC</div>
+                </div>
+            </div>
+            
+            <!-- Upload de JSON de Teses -->
+            <div class="upload-area" id="uploadAreaTeses" 
+                 onclick="document.getElementById('tesesFile').click()"
+                 ondrop="handleDropTeses(event)"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)">
+                <div class="upload-icon">📋</div>
+                <h3>Carregar JSON de Teses Vinculantes</h3>
+                <p>Arraste o arquivo JSON aqui ou clique para selecionar</p>
+                <input type="file" id="tesesFile" accept=".json" onchange="handleTesesFileSelect(event)">
+            </div>
+            
+            <div id="alertAreaTeses"></div>
+            
+            <div class="btn-group" id="btnGroupTeses" style="display: none; margin-top: 15px;">
+                <button class="btn btn-success" onclick="aplicarTeses()">
+                    ✅ Aplicar Teses
+                </button>
+                <button class="btn btn-danger" onclick="cancelarTeses()">
+                    ❌ Cancelar
+                </button>
+            </div>
+        </div>
+        
         <!-- Log -->
         <div class="section">
             <h2>📝 Log de Operações</h2>
@@ -450,6 +501,155 @@
             log('💾 Dados exportados', 'success');
         }
         
+        // ========== GESTÃO DE TESES VINCULANTES ==========
+        let tesesData = null;
+        
+        function carregarEstatisticasTeses() {
+            const tesesSalvas = localStorage.getItem('juristst_teses');
+            if (tesesSalvas) {
+                try {
+                    const teses = JSON.parse(tesesSalvas);
+                    atualizarEstatisticasTeses(teses);
+                } catch (error) {
+                    log('⚠️ Erro ao carregar estatísticas de teses', 'warn');
+                }
+            }
+        }
+        
+        function atualizarEstatisticasTeses(teses) {
+            const total = teses.length;
+            const irr = teses.filter(t => t.tipo?.toLowerCase() === 'irr').length;
+            const irdr = teses.filter(t => t.tipo?.toLowerCase() === 'irdr').length;
+            const iac = teses.filter(t => t.tipo?.toLowerCase() === 'iac').length;
+            
+            document.getElementById('statTesesTotal').textContent = total;
+            document.getElementById('statTesesIRR').textContent = irr;
+            document.getElementById('statTesesIRDR').textContent = irdr;
+            document.getElementById('statTesesIAC').textContent = iac;
+        }
+        
+        function handleDropTeses(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadAreaTeses').classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processarArquivoTeses(files[0]);
+            }
+        }
+        
+        function handleTesesFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processarArquivoTeses(file);
+            }
+        }
+        
+        async function processarArquivoTeses(file) {
+            log(`📄 Processando arquivo de teses: ${file.name}`, 'info');
+            
+            if (!file.name.endsWith('.json')) {
+                mostrarAlertaTeses('Erro: O arquivo deve ser um JSON (.json)', 'danger');
+                log('❌ Arquivo inválido (não é JSON)', 'error');
+                return;
+            }
+            
+            try {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const jsonData = JSON.parse(e.target.result);
+                        log('✅ Arquivo JSON lido com sucesso', 'success');
+                        
+                        // Validar estrutura
+                        if (!jsonData.teses || !Array.isArray(jsonData.teses)) {
+                            throw new Error('Estrutura inválida: falta array "teses"');
+                        }
+                        
+                        tesesData = jsonData.teses;
+                        
+                        log(`📊 Total de teses encontradas: ${tesesData.length}`, 'info');
+                        
+                        // Validar campos obrigatórios
+                        const camposObrigatorios = ['tema', 'numero_processo', 'tese'];
+                        let tesesInvalidas = 0;
+                        
+                        tesesData.forEach((tese, index) => {
+                            camposObrigatorios.forEach(campo => {
+                                if (!tese[campo]) {
+                                    log(`⚠️ Tese ${index + 1}: campo "${campo}" ausente`, 'warn');
+                                    tesesInvalidas++;
+                                }
+                            });
+                        });
+                        
+                        if (tesesInvalidas > 0) {
+                            mostrarAlertaTeses(`⚠️ Atenção: ${tesesInvalidas} tese(s) com campos ausentes`, 'warning');
+                        } else {
+                            mostrarAlertaTeses(`✅ ${tesesData.length} teses válidas prontas para aplicar`, 'success');
+                        }
+                        
+                        atualizarEstatisticasTeses(tesesData);
+                        document.getElementById('btnGroupTeses').style.display = 'flex';
+                        
+                    } catch (error) {
+                        log(`❌ Erro ao processar JSON: ${error.message}`, 'error');
+                        mostrarAlertaTeses(`Erro ao processar JSON: ${error.message}`, 'danger');
+                    }
+                };
+                
+                reader.onerror = function() {
+                    log('❌ Erro ao ler arquivo', 'error');
+                    mostrarAlertaTeses('Erro ao ler arquivo', 'danger');
+                };
+                
+                reader.readAsText(file);
+                
+            } catch (error) {
+                log(`❌ Erro: ${error.message}`, 'error');
+                mostrarAlertaTeses(`Erro: ${error.message}`, 'danger');
+            }
+        }
+        
+        function aplicarTeses() {
+            if (!tesesData) {
+                mostrarAlertaTeses('Nenhum dado novo para aplicar!', 'danger');
+                return;
+            }
+            
+            if (!confirm(`Tem certeza que deseja aplicar ${tesesData.length} teses? Os dados atuais de teses serão substituídos.`)) {
+                return;
+            }
+            
+            log('🔄 Aplicando teses vinculantes...', 'info');
+            
+            // Salvar no localStorage
+            localStorage.setItem('juristst_teses', JSON.stringify(tesesData));
+            localStorage.setItem('juristst_teses_updated', new Date().toISOString());
+            
+            log(`✅ ${tesesData.length} teses aplicadas com sucesso!`, 'success');
+            mostrarAlertaTeses('✅ Teses aplicadas! Recarregue a página principal para ver as mudanças.', 'success');
+            
+            // Limpar seleção
+            document.getElementById('btnGroupTeses').style.display = 'none';
+            tesesData = null;
+        }
+        
+        function cancelarTeses() {
+            tesesData = null;
+            document.getElementById('btnGroupTeses').style.display = 'none';
+            document.getElementById('alertAreaTeses').innerHTML = '';
+            document.getElementById('tesesFile').value = '';
+            log('❌ Upload de teses cancelado', 'info');
+            carregarEstatisticasTeses();
+        }
+        
+        function mostrarAlertaTeses(mensagem, tipo) {
+            const alertArea = document.getElementById('alertAreaTeses');
+            alertArea.innerHTML = `<div class="alert alert-${tipo}">${mensagem}</div>`;
+        }
+        
         function mostrarAlerta(mensagem, tipo) {
             const alertArea = document.getElementById('alertArea');
             alertArea.innerHTML = `<div class="alert alert-${tipo}">${mensagem}</div>`;
@@ -466,7 +666,10 @@
         }
         
         // Inicializar
-        document.addEventListener('DOMContentLoaded', carregarDadosAtuais);
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarDadosAtuais();
+            carregarEstatisticasTeses();
+        });
     </script>
 </body>
 </html>
