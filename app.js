@@ -1659,6 +1659,14 @@ window.limparTodosDados = function() {
     }, 2000);
 };
 
+// ========== FUNÇÕES AUXILIARES ==========
+
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
 // ========== TESES VINCULANTES ==========
 
 function filtrarTeses() {
