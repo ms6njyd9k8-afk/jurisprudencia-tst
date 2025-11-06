@@ -121,10 +121,31 @@ function processarDadosCarregados() {
             for (const [orgao, ojs] of Object.entries(dadosTST.ojs)) {
                 if (Array.isArray(ojs)) {
                     console.log(`📋 Processando OJs do órgão: ${orgao} (${ojs.length} itens)`);
+                    
+                    // Transformar nome do órgão para formato padronizado
+                    let orgaoFormatado = orgao.toUpperCase();
+                    
+                    // Adicionar hífen após SBDI
+                    if (orgaoFormatado.includes('SBDI')) {
+                        // sbdi1 → SBDI-1
+                        // sbdi2 → SBDI-2
+                        // sbdi1_transitoria → SBDI-1-TRANSITORIA
+                        orgaoFormatado = orgaoFormatado
+                            .replace('SBDI1_', 'SBDI-1-')
+                            .replace('SBDI2_', 'SBDI-2-')
+                            .replace('SBDI1', 'SBDI-1')
+                            .replace('SBDI2', 'SBDI-2');
+                    }
+                    
+                    // Substituir underscores por hífens
+                    orgaoFormatado = orgaoFormatado.replace(/_/g, '-');
+                    
+                    console.log(`   ➜ Órgão formatado: "${orgao}" → "${orgaoFormatado}"`);
+                    
                     // Adicionar informação do órgão a cada OJ
                     const ojsComOrgao = ojs.map(oj => ({
                         ...oj,
-                        orgao: orgao.toUpperCase().replace('_', '-').replace('SBDI', 'SBDI-')
+                        orgao: orgaoFormatado
                     }));
                     ojsArray = ojsArray.concat(ojsComOrgao);
                 }
@@ -272,9 +293,23 @@ function realizarBusca() {
     const numeroFiltro = document.getElementById('filterNumero').value.trim();
     const tagsFiltro = document.getElementById('filterTags').value.toLowerCase().trim();
     
-    const jurisprudenciaItems = todosItens.filter(item => item.source === 'jurisprudencia');
+    // Se estiver na aba de jurisprudência, filtrar apenas jurisprudência
+    // Se houver termo de busca, buscar em TUDO (incluindo PDFs)
+    let itensParaFiltrar;
     
-    itensFiltrados = jurisprudenciaItems.filter(item => {
+    if (currentTab === 'jurisprudencia') {
+        // Na aba jurisprudência, filtrar apenas jurisprudência
+        itensParaFiltrar = todosItens.filter(item => item.source === 'jurisprudencia');
+    } else if (searchTerm) {
+        // Se há busca, procurar em TODOS os itens
+        itensParaFiltrar = todosItens;
+        console.log(`🔍 Buscando "${searchTerm}" em ${todosItens.length} itens (incluindo PDFs)`);
+    } else {
+        // Sem busca, usar apenas da aba atual
+        itensParaFiltrar = todosItens.filter(item => item.source === 'jurisprudencia');
+    }
+    
+    itensFiltrados = itensParaFiltrar.filter(item => {
         // Filtro de status (canceladas/vigentes)
         if (statusFiltro === 'vigentes' && item.cancelada) return false;
         if (statusFiltro === 'canceladas' && !item.cancelada) return false;
