@@ -1,5 +1,73 @@
 // JurisTST - Sistema Inteligente de Busca de Jurisprudência
 // Desenvolvido para Renata - Assessoria Judicial TRT12
+// Versão 3.1 - FASE 1: Correções Críticas
+
+// ========== GERENCIADOR CENTRAL DE IDs ==========
+// ✅ CORREÇÃO 1: IDs sempre consistentes em todo o sistema
+
+/**
+ * Gera ID consistente para qualquer tipo de item
+ * @param {string} tipo - 'sumula', 'oj', 'precedente', 'informativo', 'tese'
+ * @param {string|number} identificador - número ou tema da tese
+ * @returns {string} ID padronizado
+ */
+function gerarIdConsistente(tipo, identificador) {
+    // Remove espaços e caracteres especiais do identificador
+    const idLimpo = String(identificador).trim().replace(/[^a-zA-Z0-9]/g, '');
+    
+    switch(tipo.toLowerCase()) {
+        case 'sumula':
+            return `sumula_${idLimpo}`;
+        case 'oj':
+            return `oj_${idLimpo}`;
+        case 'precedente':
+        case 'precedente_normativo':
+            return `precedente_${idLimpo}`;
+        case 'informativo':
+            return `informativo_${idLimpo}`;
+        case 'tese':
+        case 'irr':
+        case 'irdr':
+        case 'iac':
+            return `tese-${idLimpo}`;
+        default:
+            console.warn(`⚠️ Tipo desconhecido: ${tipo}, usando genérico`);
+            return `${tipo}_${idLimpo}`;
+    }
+}
+
+// ========== NORMALIZAÇÃO DE TEXTO PARA BUSCA ==========
+// ✅ CORREÇÃO 2: Busca funciona sem acentuação
+
+/**
+ * Remove acentos e converte para lowercase para busca
+ * @param {string} texto - Texto a ser normalizado
+ * @returns {string} Texto normalizado
+ */
+function normalizarTexto(texto) {
+    if (!texto) return '';
+    
+    return texto
+        .toLowerCase()
+        .normalize('NFD') // Decompõe caracteres acentuados
+        .replace(/[\u0300-\u036f]/g, '') // Remove marcas diacríticas
+        .trim();
+}
+
+/**
+ * Verifica se um texto contém um termo de busca (ambos normalizados)
+ * @param {string} textoCompleto - Texto onde buscar
+ * @param {string} termoBusca - Termo a ser buscado
+ * @returns {boolean}
+ */
+function contemTermoNormalizado(textoCompleto, termoBusca) {
+    if (!textoCompleto || !termoBusca) return false;
+    
+    const textoNormalizado = normalizarTexto(textoCompleto);
+    const termoNormalizado = normalizarTexto(termoBusca);
+    
+    return textoNormalizado.includes(termoNormalizado);
+}
 
 // ========== ESTRUTURA DE DADOS ==========
 let dadosTST = {
@@ -127,9 +195,6 @@ function processarDadosCarregados() {
                     
                     // Adicionar hífen após SBDI
                     if (orgaoFormatado.includes('SBDI')) {
-                        // sbdi1 → SBDI-1
-                        // sbdi2 → SBDI-2
-                        // sbdi1_transitoria → SBDI-1-TRANSITORIA
                         orgaoFormatado = orgaoFormatado
                             .replace('SBDI1_', 'SBDI-1-')
                             .replace('SBDI2_', 'SBDI-2-')
@@ -162,36 +227,46 @@ function processarDadosCarregados() {
         console.log(`⚖️ Precedentes: ${dadosTST.precedentes.length}`);
         
         // Combinar todos os itens em um array único
+        // ✅ USANDO GERENCIADOR DE IDs
         todosItens = [
-            ...dadosTST.sumulas.map(item => ({...item, tipo: item.tipo || 'sumula'})),
-            ...dadosTST.ojs.map(item => ({...item, tipo: item.tipo || 'oj'})),
-            ...dadosTST.precedentes.map(item => ({...item, tipo: item.tipo || 'precedente'}))
+            ...dadosTST.sumulas.map(item => ({
+                ...item,
+                tipo: item.tipo || 'sumula',
+                id: gerarIdConsistente('sumula', item.numero),
+                source: 'jurisprudencia'
+            })),
+            ...dadosTST.ojs.map(item => ({
+                ...item,
+                tipo: item.tipo || 'oj',
+                id: gerarIdConsistente('oj', item.numero),
+                source: 'jurisprudencia'
+            })),
+            ...dadosTST.precedentes.map(item => ({
+                ...item,
+                tipo: item.tipo || 'precedente',
+                id: gerarIdConsistente('precedente', item.numero),
+                source: 'jurisprudencia'
+            }))
         ];
         
         console.log(`📦 Total de itens combinados: ${todosItens.length}`);
-        
-        // Adicionar ID único para cada item
-        todosItens = todosItens.map((item, index) => ({
-            ...item,
-            id: `${item.tipo}_${item.numero}`,
-            index: index,
-            source: 'jurisprudencia'
-        }));
         
         // Adicionar informativos e teses ao array geral
         informativos.forEach((info, index) => {
             todosItens.push({
                 ...info,
-                id: `informativo_${index}`,
+                id: info.id || gerarIdConsistente('informativo', index),
                 tipo: 'informativo',
                 source: 'informativo'
             });
         });
         
-        tesesVinculantes.forEach((tese, index) => {
+        tesesVinculantes.forEach((tese) => {
+            // ✅ ID consistente usando tema da tese
+            const teseId = gerarIdConsistente('tese', tese.tema);
             todosItens.push({
                 ...tese,
-                id: `tese_${index}`,
+                id: teseId,
                 source: 'tese'
             });
         });
@@ -251,7 +326,7 @@ function switchTab(tabName, buttonElement) {
                 renderizarInformativos();
             } else if (tabName === 'teses') {
                 console.log('📋 Renderizando teses...');
-                renderizarTeses();
+                filtrarTeses();
             }
             console.log('✅ Renderização concluída');
         } catch (renderError) {
@@ -262,15 +337,8 @@ function switchTab(tabName, buttonElement) {
     } catch (error) {
         console.error('❌ ERRO CRÍTICO em switchTab:', error);
         console.error('Stack completo:', error.stack);
-        console.error('Detalhes:', {
-            tabName: tabName,
-            buttonElement: buttonElement,
-            currentTab: currentTab
-        });
-        // Não propagar o erro para não quebrar a interface
     }
 }
-
 
 // ========== CÁLCULO DE ESTATÍSTICAS ==========
 function calcularEstatisticas() {
@@ -286,26 +354,26 @@ function calcularEstatisticas() {
 }
 
 // ========== BUSCA E FILTROS ==========
+// ✅ CORREÇÃO 2: Busca com normalização de texto
 function realizarBusca() {
-    searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    searchTerm = document.getElementById('searchInput').value.trim();
     const tipoFiltro = document.getElementById('filterTipo').value;
     const orgaoFiltro = document.getElementById('filterOrgao').value;
     const numeroFiltro = document.getElementById('filterNumero').value.trim();
-    const tagsFiltro = document.getElementById('filterTags').value.toLowerCase().trim();
+    const tagsFiltro = document.getElementById('filterTags').value.trim();
     
-    // Se estiver na aba de jurisprudência, filtrar apenas jurisprudência
-    // Se houver termo de busca, buscar em TUDO (incluindo PDFs)
+    // Normalizar termo de busca
+    const searchTermNormalizado = normalizarTexto(searchTerm);
+    
     let itensParaFiltrar;
     
     if (currentTab === 'jurisprudencia') {
-        // Na aba jurisprudência, filtrar apenas jurisprudência
         itensParaFiltrar = todosItens.filter(item => item.source === 'jurisprudencia');
-    } else if (searchTerm) {
+    } else if (searchTermNormalizado) {
         // Se há busca, procurar em TODOS os itens
         itensParaFiltrar = todosItens;
         console.log(`🔍 Buscando "${searchTerm}" em ${todosItens.length} itens (incluindo PDFs)`);
     } else {
-        // Sem busca, usar apenas da aba atual
         itensParaFiltrar = todosItens.filter(item => item.source === 'jurisprudencia');
     }
     
@@ -325,12 +393,6 @@ function realizarBusca() {
         
         // Filtro de órgão (apenas para OJs)
         if (orgaoFiltro !== 'todos' && item.tipo === 'oj') {
-            // Debug: mostrar o órgão do item
-            if (searchTerm === '' && numeroFiltro === '') {
-                console.log(`🔍 Filtrando OJ ${item.numero}: órgão="${item.orgao}" vs filtro="${orgaoFiltro}"`);
-            }
-            
-            // Verificar se o órgão contém o filtro ou é exatamente igual
             const orgaoItem = (item.orgao || '').toUpperCase();
             const orgaoFiltroUpper = orgaoFiltro.toUpperCase();
             
@@ -342,28 +404,26 @@ function realizarBusca() {
         // Filtro de número
         if (numeroFiltro && item.numero !== numeroFiltro) return false;
         
-        // Filtro de tags
+        // Filtro de tags (normalizado)
         if (tagsFiltro) {
             const itemTags = tags[item.id] || [];
             const filterTagsArray = tagsFiltro.split(',').map(t => t.trim());
             const hasAllTags = filterTagsArray.every(filterTag => 
-                itemTags.some(itemTag => itemTag.toLowerCase().includes(filterTag))
+                itemTags.some(itemTag => contemTermoNormalizado(itemTag, filterTag))
             );
             if (!hasAllTags) return false;
         }
         
-        // Busca textual
-        if (searchTerm) {
-            // Incluir texto extraído de PDFs na busca
-            const textoCompleto = `${item.numero} ${item.titulo || ''} ${item.texto || ''} ${item.textoExtraido || ''}`.toLowerCase();
+        // Busca textual (NORMALIZADA)
+        if (searchTermNormalizado) {
+            const textoCompleto = `${item.numero} ${item.titulo || ''} ${item.texto || ''} ${item.textoExtraido || ''}`;
+            const anotacao = anotacoes[item.id] || '';
+            const textoComAnotacao = textoCompleto + ' ' + anotacao;
+            
             const termos = searchTerm.split(' ').filter(t => t.length > 2);
             
-            // Buscar também nas anotações
-            const anotacao = anotacoes[item.id] || '';
-            const textoComAnotacao = textoCompleto + ' ' + anotacao.toLowerCase();
-            
-            // Todos os termos devem estar presentes
-            return termos.every(termo => textoComAnotacao.includes(termo));
+            // Todos os termos devem estar presentes (busca normalizada)
+            return termos.every(termo => contemTermoNormalizado(textoComAnotacao, termo));
         }
         
         return true;
@@ -559,30 +619,9 @@ function renderizarFavoritos() {
             return;
         }
         
-        // Combinar itens de jurisprudência e teses
-        const itensFavoritos = [];
-        
-        favoritos.forEach(favId => {
-            if (favId.startsWith('tese-')) {
-                // É uma tese vinculante
-                const tema = favId.replace('tese-', '');
-                const tese = tesesVinculantes.find(t => t.tema === tema);
-                if (tese) {
-                    itensFavoritos.push({
-                        ...tese,
-                        id: favId,
-                        tipo: 'tese',
-                        isTese: true
-                    });
-                }
-            } else {
-                // É um item de jurisprudência
-                const item = todosItens.find(i => i.id === favId);
-                if (item) {
-                    itensFavoritos.push(item);
-                }
-            }
-        });
+        const itensFavoritos = favoritos
+            .map(favId => todosItens.find(i => i.id === favId))
+            .filter(item => item !== undefined);
         
         if (itensFavoritos.length === 0) {
             content.innerHTML = `
@@ -598,11 +637,7 @@ function renderizarFavoritos() {
         let html = `<div class="${containerClass}">`;
         
         itensFavoritos.forEach(item => {
-            if (item.isTese) {
-                html += criarCardTese(item);
-            } else {
-                html += criarCardHTML(item);
-            }
+            html += criarCardHTML(item);
         });
         
         html += '</div>';
@@ -610,55 +645,6 @@ function renderizarFavoritos() {
     } catch (error) {
         console.error('❌ Erro ao renderizar favoritos:', error);
     }
-}
-
-// Função auxiliar para criar card de tese
-function criarCardTese(tese) {
-    const isFavorito = true;
-    const statusClass = tese.decisao_suspensao ? 'suspended' : 'active';
-    const statusIcon = tese.decisao_suspensao ? '⏸️' : '✅';
-    const statusText = tese.decisao_suspensao ? 'Com Suspensão' : 'Ativo';
-    
-    let tipoBadgeColor = '#3498db';
-    if (tese.tipo === 'IRDR') tipoBadgeColor = '#e74c3c';
-    if (tese.tipo === 'IAC') tipoBadgeColor = '#f39c12';
-    if (tese.tipo === 'RRAg') tipoBadgeColor = '#9b59b6';
-    
-    return `
-        <div class="result-card" onclick="abrirModalTese('${tese.tema}')">
-            <div class="result-header">
-                <div class="result-number">
-                    <span class="result-type" style="background: ${tipoBadgeColor};">${tese.tipo || 'IRR'}</span>
-                    <span class="result-num">Tema ${tese.tema}</span>
-                </div>
-                <button class="favorite-btn active" 
-                        onclick="event.stopPropagation(); toggleFavoritoTese('${tese.tema}')">
-                    ⭐
-                </button>
-            </div>
-            
-            <div class="result-title">${tese.numero_processo || 'Sem processo'}</div>
-            
-            <div class="result-preview">
-                ${truncateText(tese.tese || 'Sem tese disponível', 150)}
-            </div>
-            
-            <div class="result-footer">
-                <span class="status-badge ${statusClass}">
-                    ${statusIcon} ${statusText}
-                </span>
-                ${tese.acordao ? `<span class="result-meta">${tese.acordao}</span>` : ''}
-            </div>
-            
-            ${tese.tags && tese.tags.length > 0 ? `
-                <div class="result-tags">
-                    ${tese.tags.slice(0, 3).map(tag => 
-                        `<span class="tag">${tag}</span>`
-                    ).join('')}
-                </div>
-            ` : ''}
-        </div>
-    `;
 }
 
 // ========== ANOTAÇÕES ==========
@@ -709,6 +695,10 @@ function adicionarTag(id, tag) {
         // Atualizar visualização se necessário
         if (currentTab === 'jurisprudencia') {
             renderizarResultados();
+        } else if (currentTab === 'favoritos') {
+            renderizarFavoritos();
+        } else if (currentTab === 'teses') {
+            filtrarTeses();
         }
     }
 }
@@ -725,6 +715,10 @@ function removerTag(id, tag) {
         // Atualizar visualização se necessário
         if (currentTab === 'jurisprudencia') {
             renderizarResultados();
+        } else if (currentTab === 'favoritos') {
+            renderizarFavoritos();
+        } else if (currentTab === 'teses') {
+            filtrarTeses();
         }
     }
 }
@@ -805,8 +799,14 @@ function abrirDetalhes(id) {
         'iac': 'IAC'
     }[tipo] || tipo;
     
-    // Para informativos e teses (documentos uploaded)
-    if (item.source === 'informativo' || item.source === 'tese') {
+    // ✅ CORREÇÃO 3: TESES COM ANOTAÇÕES E TAGS
+    if (item.source === 'tese') {
+        abrirModalTese(item);
+        return;
+    }
+    
+    // Para informativos e documentos uploaded
+    if (item.source === 'informativo') {
         modalTitle.innerHTML = `
             ${tipoDisplay} ${item.nome || ''}
         `;
@@ -901,6 +901,7 @@ ${item.texto}
         
         modalBody.innerHTML = bodyHtml;
         modal.style.display = 'flex';
+        modal.classList.add('active');
         return;
     }
     
@@ -1060,6 +1061,167 @@ ${item.texto}
     console.log('✅ Modal aberto para:', item.id);
 }
 
+// ✅ CORREÇÃO 4: Modal de Teses com fechamento correto e anotações/tags
+function abrirModalTese(tese) {
+    currentModalItem = tese;
+    
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    
+    // Título
+    const tipoBadge = {
+        'irr': '#3498db',
+        'irdr': '#e74c3c',
+        'iac': '#f39c12',
+        'rrag': '#9b59b6'
+    }[tese.tipo?.toLowerCase()] || '#3498db';
+    
+    modalTitle.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span class="result-type" style="background: ${tipoBadge}; padding: 8px 16px; border-radius: 8px;">
+                ${tese.tipo || 'IRR'}
+            </span>
+            <span>Tema ${tese.tema}</span>
+        </div>
+    `;
+    
+    // Corpo do modal
+    let html = `
+        <div class="modal-section">
+            <h3 class="modal-section-title">📋 Processo Representativo</h3>
+            <p class="modal-text"><strong>${tese.numero_processo || 'Não informado'}</strong></p>
+            ${tese.acordao ? `<p class="modal-text" style="color: #7f8c8d;">${tese.acordao}</p>` : ''}
+        </div>
+    `;
+    
+    if (tese.relator) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">👤 Relator(a)</h3>
+                <p class="modal-text">${tese.relator}</p>
+            </div>
+        `;
+    }
+    
+    html += `
+        <div class="modal-section">
+            <h3 class="modal-section-title">⚖️ Tese Jurídica</h3>
+            <div class="modal-text" style="text-align: justify; line-height: 1.8;">
+                ${tese.tese || 'Tese não disponível'}
+            </div>
+        </div>
+    `;
+    
+    if (tese.ultimo_movimento) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">📊 Último Movimento</h3>
+                <p class="modal-text">${tese.ultimo_movimento}</p>
+            </div>
+        `;
+    }
+    
+    if (tese.decisao_suspensao) {
+        html += `
+            <div class="modal-section" style="background: #fff3cd; border-left: 4px solid #f39c12;">
+                <h3 class="modal-section-title" style="color: #856404;">⚠️ Decisão de Suspensão</h3>
+                <p class="modal-text" style="color: #856404;">
+                    Este tema possui decisão de suspensão de processos
+                </p>
+            </div>
+        `;
+    }
+    
+    // ✅ ADICIONANDO ANOTAÇÕES PARA TESES
+    const anotacao = anotacoes[tese.id] || '';
+    html += `
+        <div class="annotation-section">
+            <div class="annotation-header">
+                <div class="annotation-title">
+                    📝 Anotações Pessoais
+                </div>
+            </div>
+            <textarea id="annotationTextarea" class="annotation-textarea" 
+                      placeholder="Adicione suas anotações sobre esta tese..." 
+                      onchange="salvarAnotacao('${tese.id}', this.value)">${anotacao}</textarea>
+            <div class="annotation-saved">✅ Anotação salva</div>
+        </div>
+    `;
+    
+    // ✅ ADICIONANDO TAGS PARA TESES
+    const itemTags = tags[tese.id] || [];
+    html += `
+        <div class="tags-section">
+            <div class="tags-header">
+                <div class="tags-title">
+                    🏷️ Tags
+                </div>
+            </div>
+            <div class="tags-input-group">
+                <input type="text" id="tagInput" class="tags-input" 
+                       placeholder="Digite uma tag e pressione Enter" 
+                       onkeypress="if(event.key==='Enter'){adicionarTag('${tese.id}', this.value); this.value=''}">
+                <button class="btn btn-primary btn-sm" 
+                        onclick="adicionarTag('${tese.id}', document.getElementById('tagInput').value); document.getElementById('tagInput').value=''">
+                    Adicionar
+                </button>
+            </div>
+            <div class="tags-list" id="tagsList"></div>
+        </div>
+    `;
+    
+    // Links - VALIDAR SE EXISTEM E SÃO VÁLIDOS
+    if ((tese.link_processo && tese.link_processo.startsWith('http')) || 
+        (tese.link_pdf && tese.link_pdf.startsWith('http'))) {
+        html += `
+            <div class="modal-section">
+                <h3 class="modal-section-title">🔗 Links Oficiais</h3>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        `;
+        
+        if (tese.link_processo && tese.link_processo.startsWith('http')) {
+            html += `
+                <a href="${tese.link_processo}" target="_blank" class="btn btn-sm btn-secondary">
+                    📄 Ver Processo no TST
+                </a>
+            `;
+        }
+        
+        if (tese.link_pdf && tese.link_pdf.startsWith('http')) {
+            html += `
+                <a href="${tese.link_pdf}" target="_blank" class="btn btn-sm btn-secondary">
+                    📑 Baixar PDF
+                </a>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    }
+    
+    modalBody.innerHTML = html;
+    
+    // Renderizar tags após inserir HTML
+    renderizarTags(tese.id);
+    
+    // Atualizar botão de favorito
+    const isFavorito = favoritos.includes(tese.id);
+    const favBtn = document.getElementById('favoritoModalBtn');
+    if (favBtn) {
+        favBtn.textContent = isFavorito ? '⭐ Remover dos Favoritos' : '⭐ Favoritar';
+    }
+    
+    // ✅ ABERTURA CORRETA DO MODAL
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    
+    console.log('✅ Modal de tese aberto:', tese.id);
+}
+
+// ✅ CORREÇÃO 4: Fechamento robusto do modal
 function fecharModal() {
     const modal = document.getElementById('modal');
     const modalBody = document.getElementById('modalBody');
@@ -1071,26 +1233,32 @@ function fecharModal() {
     
     console.log('🔄 Fechando modal...');
     
-    // Limpar iframes antes de fechar
+    // 1. Limpar iframes PRIMEIRO
     if (modalBody) {
         const iframes = modalBody.querySelectorAll('iframe');
         iframes.forEach(iframe => {
             iframe.src = 'about:blank';
             iframe.remove();
         });
-        modalBody.innerHTML = '';
     }
     
-    // IMPORTANTE: Remover classe E resetar display
+    // 2. Remover classe active (inicia animação)
     modal.classList.remove('active');
-    // Aguardar animação antes de esconder
+    
+    // 3. Aguardar animação antes de esconder completamente
     setTimeout(() => {
         modal.style.display = 'none';
-    }, 300);
-    
-    currentModalItem = null;
-    
-    console.log('✅ Modal fechado e recursos liberados');
+        
+        // 4. Limpar conteúdo do modal
+        if (modalBody) {
+            modalBody.innerHTML = '';
+        }
+        
+        // 5. Resetar estado
+        currentModalItem = null;
+        
+        console.log('✅ Modal fechado e limpo');
+    }, 300); // Tempo da animação CSS
 }
 
 // ========== UPLOAD DE ARQUIVOS ==========
@@ -1182,7 +1350,6 @@ function processarArquivo(file, tipo) {
     if (typeof pdfjsLib === 'undefined') {
         mostrarToast('❌ PDF.js não carregado. Recarregue a página (Cmd+R).', 'error');
         console.error('❌ PDF.js não disponível. Verifique se o script foi carregado.');
-        console.error('Verifique se há erros no console relacionados ao carregamento do PDF.js');
         return;
     }
     
@@ -1196,8 +1363,14 @@ function processarArquivo(file, tipo) {
         const reader = new FileReader();
         
         reader.onload = function(e) {
+            // ✅ USANDO GERENCIADOR DE IDs
+            const timestamp = Date.now();
+            const novoId = tipo === 'tese' ? 
+                gerarIdConsistente('tese', `upload_${timestamp}`) :
+                gerarIdConsistente('informativo', timestamp);
+            
             const novoItem = {
-                id: `${tipo}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                id: novoId,
                 nome: file.name,
                 tipo: tipo === 'tese' ? obterTipoTese() : tipo,
                 dataUpload: new Date().toISOString(),
@@ -1217,7 +1390,7 @@ function processarArquivo(file, tipo) {
             } else if (tipo === 'tese') {
                 tesesVinculantes.push(novoItem);
                 localStorage.setItem('juristst_teses', JSON.stringify(tesesVinculantes));
-                renderizarTeses();
+                filtrarTeses();
             }
             
             // Adicionar ao array geral
@@ -1309,76 +1482,120 @@ function renderizarInformativos() {
 }
 
 // ========== RENDERIZAÇÃO DE TESES ==========
-function renderizarTeses() {
-    try {
-        const lista = document.getElementById('tesesList');
-        
-        if (!lista) {
-            console.warn('⚠️ Elemento tesesList não encontrado');
-            return;
-        }
-        
-        const tesesFiltradas = filtrarTesesPorTipo();
-        
-        if (tesesFiltradas.length === 0) {
-            lista.innerHTML = `
-                <div class="empty-state">
-                    <p>Nenhuma tese vinculante adicionada ainda</p>
-                </div>
-            `;
-            return;
-        }
-        
-        lista.innerHTML = tesesFiltradas.map(tese => {
-            const tipoLabel = {
-                'irr': 'IRR',
-                'irdr': 'IRDR',
-                'iac': 'IAC'
-            }[tese.tipo] || tese.tipo;
-            
-            return `
-                <div class="document-item">
-                    <div class="document-info">
-                        <div class="document-title">
-                            <span class="card-badge badge-${tese.tipo}" style="margin-right: 10px;">${tipoLabel}</span>
-                            ${tese.nome}
-                        </div>
-                        <div class="document-meta">
-                            📅 ${new Date(tese.dataUpload).toLocaleDateString('pt-BR')} | 
-                            📁 ${tese.tamanho}
-                        </div>
-                    </div>
-                    <div class="document-actions">
-                        <button class="btn btn-warning btn-sm" onclick="toggleFavorito('${tese.id}')">
-                            ${favoritos.includes(tese.id) ? '⭐' : '☆'}
-                        </button>
-                        <button class="btn btn-primary btn-sm" onclick="abrirDetalhes('${tese.id}')">
-                            👁️ Ver
-                        </button>
-                        <button class="btn btn-danger btn-sm" onclick="removerDocumento('${tese.id}', 'tese')">
-                            🗑️ Remover
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (error) {
-        console.error('❌ Erro ao renderizar teses:', error);
-    }
-}
-
+// ✅ BUSCA NORMALIZADA APLICADA
 function filtrarTeses() {
-    renderizarTeses();
-}
-
-function filtrarTesesPorTipo() {
-    const filtro = document.getElementById('filterTipoTese').value;
+    const tipoFiltro = document.getElementById('filterTipoTese')?.value || 'todos';
+    const searchTerm = document.getElementById('searchTeseInput')?.value?.trim() || '';
+    const searchNormalizado = normalizarTexto(searchTerm);
     
-    if (filtro === 'todos') {
-        return tesesVinculantes;
+    let tesesFiltradas = tesesVinculantes;
+    
+    // Filtrar por tipo
+    if (tipoFiltro !== 'todos') {
+        tesesFiltradas = tesesFiltradas.filter(tese => {
+            const tipo = tese.tipo?.toLowerCase() || '';
+            return tipo === tipoFiltro;
+        });
     }
     
-    return tesesVinculantes.filter(tese => tese.tipo === filtro);
+    // Filtrar por busca NORMALIZADA
+    if (searchNormalizado) {
+        tesesFiltradas = tesesFiltradas.filter(tese => {
+            const tema = tese.tema || '';
+            const processo = tese.numero_processo || '';
+            const teseTexto = tese.tese || '';
+            const itemTags = tags[tese.id] || [];
+            const anotacao = anotacoes[tese.id] || '';
+            
+            const textoCompleto = `${tema} ${processo} ${teseTexto} ${itemTags.join(' ')} ${anotacao}`;
+            
+            return contemTermoNormalizado(textoCompleto, searchTerm);
+        });
+    }
+    
+    renderizarTeses(tesesFiltradas);
+}
+
+function renderizarTeses(teses = tesesVinculantes) {
+    const container = document.getElementById('tesesList');
+    
+    // Atualizar contador
+    const countElement = document.getElementById('tesesCount');
+    if (countElement) {
+        countElement.textContent = `${teses.length} ${teses.length === 1 ? 'tese encontrada' : 'teses encontradas'}`;
+    }
+    
+    if (!teses || teses.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>📋 Nenhuma tese encontrada</h3>
+                <p>Use o painel Admin para adicionar teses vinculantes</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="results-grid">';
+    
+    teses.forEach(tese => {
+        const isFavorito = favoritos.includes(tese.id);
+        const statusClass = tese.decisao_suspensao ? 'suspended' : 'active';
+        const statusIcon = tese.decisao_suspensao ? '⏸️' : '✅';
+        const statusText = tese.decisao_suspensao ? 'Com Suspensão' : 'Ativo';
+        
+        const itemTags = tags[tese.id] || [];
+        const hasAnotacao = anotacoes[tese.id] && anotacoes[tese.id].trim() !== '';
+        
+        let tipoBadgeColor = '#3498db';
+        if (tese.tipo === 'IRDR') tipoBadgeColor = '#e74c3c';
+        if (tese.tipo === 'IAC') tipoBadgeColor = '#f39c12';
+        if (tese.tipo === 'RRAg') tipoBadgeColor = '#9b59b6';
+        
+        html += `
+            <div class="card" onclick="abrirDetalhes('${tese.id}')">
+                <div class="card-header">
+                    <div class="card-number">
+                        <span class="card-badge" style="background: ${tipoBadgeColor};">${tese.tipo || 'IRR'}</span>
+                        Tema ${tese.tema}
+                    </div>
+                    <button class="card-action favorite ${isFavorito ? 'active' : ''}" 
+                            onclick="event.stopPropagation(); toggleFavorito('${tese.id}')">
+                        ${isFavorito ? '⭐' : '☆'}
+                    </button>
+                </div>
+                
+                ${hasAnotacao ? `
+                    <div class="card-indicators">
+                        <div class="indicator indicator-note">📝 Anotação</div>
+                    </div>
+                ` : ''}
+                
+                <div class="card-title">${tese.numero_processo || 'Sem processo'}</div>
+                
+                <div class="card-preview">
+                    ${truncateText(tese.tese || 'Sem tese disponível', 150)}
+                </div>
+                
+                <div class="card-footer">
+                    <span class="status-badge ${statusClass}">
+                        ${statusIcon} ${statusText}
+                    </span>
+                    ${tese.acordao ? `<span style="color: var(--text-light); font-size: 0.85em;">${tese.acordao}</span>` : ''}
+                </div>
+                
+                ${itemTags.length > 0 ? `
+                    <div class="card-tags">
+                        ${itemTags.slice(0, 3).map(tag => 
+                            `<span class="tag">${tag}</span>`
+                        ).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 // ========== REMOÇÃO DE DOCUMENTOS ==========
@@ -1394,7 +1611,7 @@ function removerDocumento(id, tipo) {
     } else if (tipo === 'tese') {
         tesesVinculantes = tesesVinculantes.filter(tese => tese.id !== id);
         localStorage.setItem('juristst_teses', JSON.stringify(tesesVinculantes));
-        renderizarTeses();
+        filtrarTeses();
     }
     
     // Remover do array geral
@@ -1595,6 +1812,12 @@ function mostrarToast(mensagem, tipo = '') {
     }, 3000);
 }
 
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
+
 // ========== EVENT LISTENERS ==========
 document.addEventListener('keydown', (e) => {
     // Fechar modal com ESC
@@ -1611,7 +1834,9 @@ document.addEventListener('keydown', (e) => {
                 break;
             case 'b': // Ctrl+B para favoritos
                 e.preventDefault();
-                switchTab('favoritos');
+                const favButton = Array.from(document.querySelectorAll('.tab-button'))
+                    .find(btn => btn.textContent.includes('Favoritos'));
+                if (favButton) switchTab('favoritos', favButton);
                 break;
             case 'e': // Ctrl+E para exportar
                 e.preventDefault();
@@ -1622,7 +1847,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Fechar modal clicando fora
-document.getElementById('modal').addEventListener('click', (e) => {
+document.getElementById('modal')?.addEventListener('click', (e) => {
     if (e.target.id === 'modal') {
         fecharModal();
     }
@@ -1747,277 +1972,17 @@ window.limparTodosDados = function() {
     }, 2000);
 };
 
-// ========== FUNÇÕES AUXILIARES ==========
-
-function truncateText(text, maxLength) {
-    if (!text) return '';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-}
-
-// ========== TESES VINCULANTES ==========
-
-function filtrarTeses() {
-    const tipoFiltro = document.getElementById('filterTipoTese')?.value || 'todos';
-    const searchTerm = document.getElementById('searchTeseInput')?.value?.toLowerCase() || '';
-    
-    let tesesFiltradas = tesesVinculantes;
-    
-    // Filtrar por tipo
-    if (tipoFiltro !== 'todos') {
-        tesesFiltradas = tesesFiltradas.filter(tese => {
-            const tipo = tese.tipo?.toLowerCase() || '';
-            return tipo === tipoFiltro;
-        });
-    }
-    
-    // Filtrar por busca
-    if (searchTerm) {
-        tesesFiltradas = tesesFiltradas.filter(tese => {
-            const tema = (tese.tema || '').toLowerCase();
-            const processo = (tese.numero_processo || '').toLowerCase();
-            const teseTexto = (tese.tese || '').toLowerCase();
-            const tags = (tese.tags || []).join(' ').toLowerCase();
-            
-            return tema.includes(searchTerm) ||
-                   processo.includes(searchTerm) ||
-                   teseTexto.includes(searchTerm) ||
-                   tags.includes(searchTerm);
-        });
-    }
-    
-    renderizarTeses(tesesFiltradas);
-}
-
-function renderizarTeses(teses = tesesVinculantes) {
-    const container = document.getElementById('tesesList');
-    
-    // Atualizar contador
-    const countElement = document.getElementById('tesesCount');
-    if (countElement) {
-        countElement.textContent = `${teses.length} ${teses.length === 1 ? 'tese encontrada' : 'teses encontradas'}`;
-    }
-    
-    if (!teses || teses.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <h3>📋 Nenhuma tese encontrada</h3>
-                <p>Use o painel Admin para adicionar teses vinculantes</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '<div class="results-grid">';
-    
-    teses.forEach(tese => {
-        const isFavorito = favoritos.includes(tese.id || `tese-${tese.tema}`);
-        const statusClass = tese.decisao_suspensao ? 'suspended' : 'active';
-        const statusIcon = tese.decisao_suspensao ? '⏸️' : '✅';
-        const statusText = tese.decisao_suspensao ? 'Com Suspensão' : 'Ativo';
-        
-        // Determinar cor do badge pelo tipo
-        let tipoBadgeColor = '#3498db';
-        if (tese.tipo === 'IRDR') tipoBadgeColor = '#e74c3c';
-        if (tese.tipo === 'IAC') tipoBadgeColor = '#f39c12';
-        if (tese.tipo === 'RRAg') tipoBadgeColor = '#9b59b6';
-        
-        html += `
-            <div class="result-card" onclick="abrirModalTese('${tese.tema}')">
-                <div class="result-header">
-                    <div class="result-number">
-                        <span class="result-type" style="background: ${tipoBadgeColor};">${tese.tipo || 'IRR'}</span>
-                        <span class="result-num">Tema ${tese.tema}</span>
-                    </div>
-                    <button class="favorite-btn ${isFavorito ? 'active' : ''}" 
-                            onclick="event.stopPropagation(); toggleFavoritoTese('${tese.tema}')">
-                        ${isFavorito ? '⭐' : '☆'}
-                    </button>
-                </div>
-                
-                <div class="result-title">${tese.numero_processo || 'Sem processo'}</div>
-                
-                <div class="result-preview">
-                    ${truncateText(tese.tese || 'Sem tese disponível', 150)}
-                </div>
-                
-                <div class="result-footer">
-                    <span class="status-badge ${statusClass}">
-                        ${statusIcon} ${statusText}
-                    </span>
-                    ${tese.acordao ? `<span class="result-meta">${tese.acordao}</span>` : ''}
-                </div>
-                
-                ${tese.tags && tese.tags.length > 0 ? `
-                    <div class="result-tags">
-                        ${tese.tags.slice(0, 3).map(tag => 
-                            `<span class="tag">${tag}</span>`
-                        ).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-function abrirModalTese(tema) {
-    const tese = tesesVinculantes.find(t => t.tema === tema);
-    if (!tese) {
-        console.error('Tese não encontrada:', tema);
-        return;
-    }
-    
-    currentModalItem = { id: `tese-${tema}`, type: 'tese', data: tese };
-    
-    const modal = document.getElementById('modal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    // IMPORTANTE: Resetar estado do modal primeiro
-    modal.style.display = 'flex';
-    
-    // Título
-    modalTitle.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <span class="result-type" style="background: #3498db; padding: 8px 16px; border-radius: 8px;">
-                ${tese.tipo || 'IRR'}
-            </span>
-            <span>Tema ${tese.tema}</span>
-        </div>
-    `;
-    
-    // Corpo do modal
-    let html = `
-        <div class="modal-section">
-            <h3 class="modal-section-title">📋 Processo Representativo</h3>
-            <p class="modal-text"><strong>${tese.numero_processo || 'Não informado'}</strong></p>
-            ${tese.acordao ? `<p class="modal-text" style="color: #7f8c8d;">${tese.acordao}</p>` : ''}
-        </div>
-    `;
-    
-    if (tese.relator) {
-        html += `
-            <div class="modal-section">
-                <h3 class="modal-section-title">👤 Relator(a)</h3>
-                <p class="modal-text">${tese.relator}</p>
-            </div>
-        `;
-    }
-    
-    html += `
-        <div class="modal-section">
-            <h3 class="modal-section-title">⚖️ Tese Jurídica</h3>
-            <div class="modal-text" style="text-align: justify; line-height: 1.8;">
-                ${tese.tese || 'Tese não disponível'}
-            </div>
-        </div>
-    `;
-    
-    if (tese.ultimo_movimento) {
-        html += `
-            <div class="modal-section">
-                <h3 class="modal-section-title">📊 Último Movimento</h3>
-                <p class="modal-text">${tese.ultimo_movimento}</p>
-            </div>
-        `;
-    }
-    
-    if (tese.decisao_suspensao) {
-        html += `
-            <div class="modal-section" style="background: #fff3cd; border-left: 4px solid #f39c12;">
-                <h3 class="modal-section-title" style="color: #856404;">⚠️ Decisão de Suspensão</h3>
-                <p class="modal-text" style="color: #856404;">
-                    Este tema possui decisão de suspensão de processos
-                </p>
-            </div>
-        `;
-    }
-    
-    // Links - VALIDAR SE EXISTEM E SÃO VÁLIDOS
-    if ((tese.link_processo && tese.link_processo.startsWith('http')) || 
-        (tese.link_pdf && tese.link_pdf.startsWith('http'))) {
-        html += `
-            <div class="modal-section">
-                <h3 class="modal-section-title">🔗 Links Oficiais</h3>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        `;
-        
-        if (tese.link_processo && tese.link_processo.startsWith('http')) {
-            html += `
-                <a href="${tese.link_processo}" target="_blank" class="btn btn-sm btn-secondary">
-                    📄 Ver Processo no TST
-                </a>
-            `;
-        }
-        
-        if (tese.link_pdf && tese.link_pdf.startsWith('http')) {
-            html += `
-                <a href="${tese.link_pdf}" target="_blank" class="btn btn-sm btn-secondary">
-                    📑 Baixar PDF
-                </a>
-            `;
-        }
-        
-        html += `
-                </div>
-            </div>
-        `;
-    }
-    
-    // Tags
-    if (tese.tags && tese.tags.length > 0) {
-        html += `
-            <div class="modal-section">
-                <h3 class="modal-section-title">🏷️ Tags</h3>
-                <div class="result-tags">
-                    ${tese.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
-                </div>
-            </div>
-        `;
-    }
-    
-    modalBody.innerHTML = html;
-    
-    // Atualizar botão de favorito
-    const isFavorito = favoritos.includes(`tese-${tema}`);
-    const favBtn = document.getElementById('favoritoModalBtn');
-    if (favBtn) {
-        favBtn.textContent = isFavorito ? '⭐ Remover dos Favoritos' : '⭐ Favoritar';
-    }
-    
-    modal.classList.add('active');
-}
-
-function toggleFavoritoTese(tema) {
-    const teseId = `tese-${tema}`;
-    const index = favoritos.indexOf(teseId);
-    
-    if (index > -1) {
-        favoritos.splice(index, 1);
-        mostrarToast('Removido dos favoritos', 'info');
-    } else {
-        favoritos.push(teseId);
-        mostrarToast('Adicionado aos favoritos', 'success');
-    }
-    
-    localStorage.setItem('juristst_favoritos', JSON.stringify(favoritos));
-    
-    // Atualizar visualização
-    if (currentTab === 'teses') {
-        filtrarTeses();
-    } else if (currentTab === 'favoritos') {
-        renderizarFavoritos();
-    }
-}
-
 // ========== INICIALIZAÇÃO ==========
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 JurisTST - Sistema Inteligente de Busca de Jurisprudência');
     console.log('📚 Desenvolvido para Renata - Assessoria Judicial TRT12');
-    console.log('⚖️ Versão 3.0 - Sistema Completo com PDF.js');
+    console.log('⚖️ Versão 3.1 - FASE 1: Correções Críticas Implementadas');
+    console.log('');
+    console.log('✅ CORREÇÕES APLICADAS:');
+    console.log('  1. IDs consistentes em todo sistema');
+    console.log('  2. Busca normalizada (ignora acentos)');
+    console.log('  3. Anotações e tags em teses vinculantes');
+    console.log('  4. Modal com fechamento robusto');
     
     carregarDados();
     
@@ -2037,16 +2002,7 @@ document.addEventListener('DOMContentLoaded', function() {
         closeButton.addEventListener('click', fecharModal);
     }
     
-    // Adicionar listener para prevenir saída acidental
-    window.addEventListener('beforeunload', function(e) {
-        // Verificar se há anotações não salvas
-        const textarea = document.getElementById('annotationTextarea');
-        if (textarea && textarea.value !== (anotacoes[currentModalItem?.id] || '')) {
-            e.preventDefault();
-            e.returnValue = 'Há anotações não salvas. Deseja sair?';
-        }
-    });
-    
+    console.log('');
     console.log('💡 Dica: Use os seguintes comandos no console:');
     console.log('  - debugStats() : Ver estatísticas do sistema');
     console.log('  - exportarDados() : Fazer backup dos dados');
