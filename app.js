@@ -98,7 +98,6 @@ async function carregarJurisprudencia() {
         console.log('📊 JSON carregado do GitHub:', dadosTST);
         
         processarDadosCarregados();
-        processarDadosCarregados();
     } catch (error) {
         console.error('❌ Erro ao carregar jurisprudência:', error);
         mostrarToast('Erro ao carregar dados da jurisprudência', 'error');
@@ -121,10 +120,11 @@ function processarDadosCarregados() {
             // Iterar sobre cada subgrupo de OJs
             for (const [orgao, ojs] of Object.entries(dadosTST.ojs)) {
                 if (Array.isArray(ojs)) {
+                    console.log(`📋 Processando OJs do órgão: ${orgao} (${ojs.length} itens)`);
                     // Adicionar informação do órgão a cada OJ
                     const ojsComOrgao = ojs.map(oj => ({
                         ...oj,
-                        orgao: orgao.toUpperCase().replace('_', '-')
+                        orgao: orgao.toUpperCase().replace('_', '-').replace('SBDI', 'SBDI-')
                     }));
                     ojsArray = ojsArray.concat(ojsComOrgao);
                 }
@@ -290,7 +290,18 @@ function realizarBusca() {
         
         // Filtro de órgão (apenas para OJs)
         if (orgaoFiltro !== 'todos' && item.tipo === 'oj') {
-            if (!item.orgao || !item.orgao.includes(orgaoFiltro)) return false;
+            // Debug: mostrar o órgão do item
+            if (searchTerm === '' && numeroFiltro === '') {
+                console.log(`🔍 Filtrando OJ ${item.numero}: órgão="${item.orgao}" vs filtro="${orgaoFiltro}"`);
+            }
+            
+            // Verificar se o órgão contém o filtro ou é exatamente igual
+            const orgaoItem = (item.orgao || '').toUpperCase();
+            const orgaoFiltroUpper = orgaoFiltro.toUpperCase();
+            
+            if (!orgaoItem.includes(orgaoFiltroUpper)) {
+                return false;
+            }
         }
         
         // Filtro de número
@@ -920,23 +931,39 @@ ${item.texto}
     
     // Salvar texto atual no modal para cópia
     modal.dataset.textoCompleto = item.texto_completo || item.texto || '';
+    
+    // CRÍTICO: Abrir o modal com display flex
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    
+    console.log('✅ Modal aberto para:', item.id);
 }
 
 function fecharModal() {
     const modal = document.getElementById('modal');
     const modalBody = document.getElementById('modalBody');
     
+    if (!modal) {
+        console.error('❌ Modal não encontrado');
+        return;
+    }
+    
+    console.log('🔄 Fechando modal...');
+    
     // CRÍTICO: Limpar iframes antes de fechar para evitar travamentos
-    const iframes = modalBody.querySelectorAll('iframe');
-    iframes.forEach(iframe => {
-        iframe.src = 'about:blank'; // Libera memória e recursos
-        iframe.remove();
-    });
+    if (modalBody) {
+        const iframes = modalBody.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+            iframe.src = 'about:blank'; // Libera memória e recursos
+            iframe.remove();
+        });
+        
+        // Limpar todo o conteúdo do modal
+        modalBody.innerHTML = '';
+    }
     
-    // Limpar todo o conteúdo do modal
-    modalBody.innerHTML = '';
-    
-    // Fechar modal
+    // Fechar modal - usar display none
+    modal.style.display = 'none';
     modal.classList.remove('active');
     currentModalItem = null;
     
@@ -1019,23 +1046,30 @@ function handleDragLeave(event) {
 }
 
 function processarArquivo(file, tipo) {
+    console.log('🔄 Processando arquivo:', file.name, 'Tipo:', file.type);
+    
     // Apenas PDFs são suportados
     if (!file.type.includes('pdf')) {
         mostrarToast('Por favor, selecione apenas arquivos PDF', 'error');
+        console.error('❌ Arquivo não é PDF:', file.type);
         return;
     }
     
     // Verificar se PDF.js está disponível
     if (typeof pdfjsLib === 'undefined') {
-        mostrarToast('PDF.js não carregado. Recarregue a página.', 'error');
-        console.error('❌ PDF.js não disponível');
+        mostrarToast('❌ PDF.js não carregado. Recarregue a página (Cmd+R).', 'error');
+        console.error('❌ PDF.js não disponível. Verifique se o script foi carregado.');
+        console.error('Verifique se há erros no console relacionados ao carregamento do PDF.js');
         return;
     }
     
-    mostrarToast('📄 Extraindo texto do PDF...', 'info');
+    console.log('✅ PDF.js disponível, iniciando extração...');
+    mostrarToast('📄 Extraindo texto do PDF... Aguarde...', 'info');
     
     // Extrair texto do PDF
     extrairTextoPDF(file).then(textoExtraido => {
+        console.log(`✅ Texto extraído: ${textoExtraido.length} caracteres`);
+        
         const reader = new FileReader();
         
         reader.onload = function(e) {
@@ -1047,8 +1081,11 @@ function processarArquivo(file, tipo) {
                 tamanho: formatarTamanho(file.size),
                 conteudo: e.target.result, // Data URL do PDF
                 textoExtraido: textoExtraido, // ✅ TEXTO PARA BUSCA
+                texto: textoExtraido, // ✅ Também salvar como 'texto' para compatibilidade
                 source: tipo
             };
+            
+            console.log('💾 Item criado:', novoItem.id);
             
             if (tipo === 'informativo') {
                 informativos.push(novoItem);
