@@ -651,11 +651,21 @@
             
             log('🔄 Aplicando teses vinculantes...', 'info');
             
-            // Salvar no localStorage
-            localStorage.setItem('juristst_teses', JSON.stringify(tesesData));
+            // ✅ GERAR IDs PARA AS TESES ANTES DE SALVAR
+            const tesesComId = tesesData.map((tese, index) => {
+                // Se já tem ID, manter. Se não, gerar um baseado no tema
+                if (!tese.id) {
+                    tese.id = `tese-${tese.tema || index + 1}`;
+                    log(`🆔 ID gerado para tese tema ${tese.tema}: ${tese.id}`, 'info');
+                }
+                return tese;
+            });
+            
+            // Salvar no localStorage COM IDs
+            localStorage.setItem('juristst_teses', JSON.stringify(tesesComId));
             localStorage.setItem('juristst_teses_updated', new Date().toISOString());
             
-            log(`✅ ${tesesData.length} teses aplicadas com sucesso!`, 'success');
+            log(`✅ ${tesesComId.length} teses aplicadas com sucesso (todas com IDs)!`, 'success');
             mostrarAlertaTeses('✅ Teses aplicadas! Recarregue a página principal para ver as mudanças.', 'success');
             
             // Limpar seleção
