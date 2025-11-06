@@ -483,7 +483,7 @@ function criarCardHTML(item) {
         'iac': { display: 'IAC', badge: 'badge-iac' }
     };
     
-    const tipoInfo = tipoMap[tipo] || { display: tipo, badge: 'badge-sumula' };
+    const tipoInfo = tipoMap[tipo.toLowerCase()] || { display: tipo, badge: 'badge-sumula' };
     
     const isFavorito = favoritos.includes(item.id);
     const favoritoClass = isFavorito ? 'active' : '';
@@ -496,9 +496,23 @@ function criarCardHTML(item) {
     const orgaoInfo = item.orgao ? ` - ${item.orgao}` : '';
     const canceladoClass = item.cancelada ? 'cancelado' : '';
     
-    // Destacar termos de busca
-    let tituloExibido = item.titulo || '';
-    let textoExibido = (item.texto || '').substring(0, 200) + '...';
+    // ✅ CORREÇÃO: Suportar tanto jurisprudência quanto teses
+    let tituloExibido = '';
+    let textoExibido = '';
+    let numeroExibido = '';
+    
+    // Identificar se é tese ou jurisprudência
+    if (item.source === 'tese' || item.tema) {
+        // É uma tese vinculante
+        numeroExibido = `Tema ${item.tema}`;
+        tituloExibido = item.numero_processo || 'Sem processo';
+        textoExibido = (item.tese || 'Sem tese disponível').substring(0, 200) + '...';
+    } else {
+        // É jurisprudência (súmula, OJ, precedente) ou informativo
+        numeroExibido = item.numero || item.nome || 'N/A';
+        tituloExibido = item.titulo || '';
+        textoExibido = (item.texto || '').substring(0, 200) + '...';
+    }
     
     if (searchTerm) {
         const termos = searchTerm.split(' ').filter(t => t.length > 2);
@@ -513,7 +527,7 @@ function criarCardHTML(item) {
         <div class="card ${canceladoClass}" onclick="abrirDetalhes('${item.id}')">
             <div class="card-header">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="card-number">#${item.numero || item.nome || 'N/A'}</div>
+                    <div class="card-number">#${numeroExibido}</div>
                     ${item.cancelada ? '<span class="canceled-badge">❌ CANCELADA</span>' : ''}
                 </div>
                 <div class="card-badges">
